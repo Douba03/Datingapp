@@ -9,7 +9,8 @@
         "gradleCommand": ":app:assembleRelease"
       },
       "env": {
-        "npm_config_legacy_peer_deps": "true"
+        "npm_config_legacy_peer_deps": "true",
+        "NODE_OPTIONS": "--max-old-space-size=4096"
       }
     },
     "production": {
