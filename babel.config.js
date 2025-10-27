@@ -3,12 +3,8 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      [
-        'react-native-reanimated/plugin',
-        {
-          relativeSourceLocation: true,
-        },
-      ],
+      // Reanimated plugin has to be listed last
+      'react-native-reanimated/plugin',
     ],
   };
 };
