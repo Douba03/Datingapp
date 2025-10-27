@@ -45,7 +45,8 @@
           "color": "#ffffff",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "notification": {
       "color": "#ffffff",
@@ -56,7 +57,9 @@
       "router": {
         "origin": false
       },
-
+      "eas": {
+        "projectId": "15627f4a-7fda-4946-8e05-621b6ce726ce"
+      }
     },
     "owner": "qossai03"
   }
