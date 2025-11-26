@@ -30,12 +30,35 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
-
 # typescript
 *.tsbuildinfo
 
 # generated native folders
 /ios
 /android
+
+# Build artifacts and zip files
+*.zip
+downloads/
+
+# Netlify deploy folders
+netlify-complete/
+netlify-deploy/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

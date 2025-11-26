@@ -54,43 +54,60 @@ export function Button({
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 12,
+    borderRadius: 16, // More rounded
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3, // Android shadow
   },
   primary: {
     backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
   },
   secondary: {
     backgroundColor: colors.secondary,
+    shadowColor: colors.secondary,
+    shadowOpacity: 0.3,
   },
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 2,
     borderColor: colors.primary,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   small: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 36,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    minHeight: 40,
   },
   medium: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    minHeight: 48,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    minHeight: 52,
   },
   large: {
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    minHeight: 56,
+    paddingHorizontal: 36,
+    paddingVertical: 18,
+    minHeight: 60,
   },
   disabled: {
     opacity: 0.5,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   text: {
-    fontWeight: '600',
+    fontWeight: '700', // Bolder
     textAlign: 'center',
+    letterSpacing: 0.3, // Better spacing
   },
   primaryText: {
     color: '#fff',
@@ -100,6 +117,7 @@ const styles = StyleSheet.create({
   },
   outlineText: {
     color: colors.primary,
+    fontWeight: '600',
   },
   smallText: {
     fontSize: 14,

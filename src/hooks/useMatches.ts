@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../services/supabase/client';
 import { Profile, Swipe, SwipeCounter } from '../types/user';
 import { useAuth } from './useAuth';
@@ -9,80 +9,88 @@ export function useMatches() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [swipeCounter, setSwipeCounter] = useState<SwipeCounter | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Use refs to prevent duplicate fetches
+  const isFetchingRef = useRef(false);
+  const isFetchingProfilesRef = useRef(false);
+  const mountedRef = useRef(true);
+  const hasFetchedRef = useRef(false);
 
+  // Store user/profile in refs
+  const userRef = useRef(user);
+  const profileRef = useRef(profile);
+  
   useEffect(() => {
-    if (!user || !profile) return;
-
-    fetchSwipeCounter();
-    fetchPotentialMatches();
-
-    // After onboarding, profile/preferences may be set asynchronously.
-    // Refetch once shortly after mount to avoid frozen state until manual refresh.
-    const timer = setTimeout(() => {
-      fetchSwipeCounter();
-      fetchPotentialMatches();
-    }, 1200);
-    return () => clearTimeout(timer);
+    userRef.current = user;
+    profileRef.current = profile;
   }, [user, profile]);
 
-  const fetchSwipeCounter = async () => {
-    if (!user) return;
+  const fetchSwipeCounter = useCallback(async () => {
+    const currentUser = userRef.current;
+    if (!currentUser || isFetchingRef.current) return;
+
+    isFetchingRef.current = true;
 
     try {
-      let counter: SwipeCounter | null = null;
-
       const { data, error } = await supabase
         .from('swipe_counters')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', currentUser.id)
         .single();
 
+      let counter: SwipeCounter | null = null;
+
       if (error || !data) {
-        console.warn('[useMatches] No swipe counter found; creating one with 50 remaining');
         const { data: created, error: createError } = await supabase
           .from('swipe_counters')
-          .insert({ user_id: user.id, remaining: 50 })
+          .insert({ user_id: currentUser.id, remaining: 10 })
           .select()
           .single();
 
-        if (createError) {
-          console.error('[useMatches] Failed to create swipe counter:', createError);
-        } else {
+        if (!createError) {
           counter = created as unknown as SwipeCounter;
         }
       } else {
         counter = data as unknown as SwipeCounter;
       }
 
-      setSwipeCounter(counter);
+      if (mountedRef.current) {
+        setSwipeCounter(counter);
+      }
     } catch (error) {
-      console.error('Error fetching/creating swipe counter:', error);
+      // Silently handle error
+    } finally {
+      isFetchingRef.current = false;
     }
-  };
+  }, []);
 
-  const fetchPotentialMatches = async () => {
-    if (!user || !profile) return;
+  const fetchPotentialMatches = useCallback(async () => {
+    const currentUser = userRef.current;
+    const currentProfile = profileRef.current;
+    
+    if (!currentUser || !currentProfile || isFetchingProfilesRef.current) return;
+
+    isFetchingProfilesRef.current = true;
 
     try {
-      setLoading(true);
-      console.log('[useMatches] Fetching potential matches for user:', user.id);
-      console.log('[useMatches] Current profile:', profile);
+      if (mountedRef.current) setLoading(true);
 
       // Get already swiped user IDs
       const { data: swipedUsers } = await supabase
         .from('swipes')
         .select('target_user_id')
-        .eq('swiper_user_id', user.id);
-      // Get blocked users (both directions) and exclude
+        .eq('swiper_user_id', currentUser.id);
+
+      // Get blocked users (both directions)
       const { data: myBlocks } = await supabase
         .from('user_blocks')
         .select('blocked_user_id')
-        .eq('blocker_user_id', user.id);
+        .eq('blocker_user_id', currentUser.id);
 
       const { data: blockedMe } = await supabase
         .from('user_blocks')
         .select('blocker_user_id')
-        .eq('blocked_user_id', user.id);
+        .eq('blocked_user_id', currentUser.id);
 
       const blockedIds = [
         ...(myBlocks?.map(b => b.blocked_user_id) || []),
@@ -90,180 +98,266 @@ export function useMatches() {
       ];
 
       const swipedIds = swipedUsers?.map(s => s.target_user_id) || [];
-      console.log('[useMatches] Already swiped IDs:', swipedIds);
 
-      // Build base query - fetch profiles and preferences separately
-      // since there's no foreign key relationship defined
+      // Build base query
       let query = supabase
         .from('profiles')
         .select('*')
-        .neq('user_id', user.id);
+        .neq('user_id', currentUser.id);
 
-      // Exclude users already swiped only when we have ids
       if (swipedIds.length > 0) {
         query = query.not('user_id', 'in', `(${swipedIds.join(',')})`);
       }
 
-      // Apply block filter in query when we have ids
       if (blockedIds.length > 0) {
         query = query.not('user_id', 'in', `(${blockedIds.join(',')})`);
       }
 
-      // Get all profiles first
-      const { data: profilesData, error: profilesError } = await query.limit(10);
+      const { data: profilesData, error: profilesError } = await query.limit(50);
 
-      if (profilesError) {
-        console.error('[useMatches] Profiles query error:', profilesError);
-        throw profilesError;
-      }
+      if (profilesError) throw profilesError;
 
       if (!profilesData || profilesData.length === 0) {
-        console.log('[useMatches] No profiles found');
-        setProfiles([]);
+        if (mountedRef.current) {
+          setProfiles([]);
+          setLoading(false);
+        }
+        isFetchingProfilesRef.current = false;
         return;
       }
 
-      // Get preferences for all found profiles
+      // Get preferences for found profiles
       const profileIds = profilesData.map(p => p.user_id);
-      const { data: preferencesData, error: prefsError } = await supabase
+      const { data: preferencesData } = await supabase
         .from('preferences')
         .select('*')
         .in('user_id', profileIds);
 
-      if (prefsError) {
-        console.error('[useMatches] Preferences query error:', prefsError);
-        // Continue without preferences filtering
-      }
-
-      // Combine profiles with their preferences
-      const profilesWithPrefs = profilesData.map(profile => {
-        const preferences = preferencesData?.find(p => p.user_id === profile.user_id);
-        return { ...profile, preferences };
+      // Combine profiles with preferences
+      const profilesWithPrefs = profilesData.map(p => {
+        const preferences = preferencesData?.find(pref => pref.user_id === p.user_id);
+        return { ...p, preferences };
       });
 
-      // Apply filters manually and ensure blocks are enforced
+      // Apply filters
       let filteredProfiles = profilesWithPrefs;
 
-      // Apply gender filters
-      const currentSeeking = Array.isArray(profile.preferences?.seeking_genders)
-        ? (profile.preferences?.seeking_genders as string[])
-        : profile.preferences?.seeking_genders
-          ? [profile.preferences?.seeking_genders as unknown as string]
+      // Gender filter
+      const currentSeeking = Array.isArray(currentProfile.preferences?.seeking_genders)
+        ? (currentProfile.preferences?.seeking_genders as string[])
+        : currentProfile.preferences?.seeking_genders
+          ? [currentProfile.preferences?.seeking_genders as unknown as string]
           : [];
 
-      // Show only profiles whose gender matches what current user is seeking
       if (currentSeeking.length > 0) {
         filteredProfiles = filteredProfiles.filter(p => currentSeeking.includes(p.gender));
       }
 
-      // Optional mutual filter: include only users who are also seeking our gender (if they set it)
+      // Mutual filter
       filteredProfiles = filteredProfiles.filter(p => {
-        if (!p.preferences?.seeking_genders) return true; // if target hasn't set preferences, include
+        if (!p.preferences?.seeking_genders) return true;
         const targetSeeking = Array.isArray(p.preferences.seeking_genders)
           ? p.preferences.seeking_genders as string[]
           : [p.preferences.seeking_genders as unknown as string];
-        return targetSeeking.includes(profile.gender);
+        return targetSeeking.includes(currentProfile.gender);
       });
 
-      // Apply age filter
-      if (profile.preferences?.age_min) {
-        filteredProfiles = filteredProfiles.filter(p => p.age >= profile.preferences.age_min);
+      // Age filter
+      if (currentProfile.preferences?.age_min) {
+        filteredProfiles = filteredProfiles.filter(p => p.age >= currentProfile.preferences!.age_min!);
       }
-      if (profile.preferences?.age_max) {
-        filteredProfiles = filteredProfiles.filter(p => p.age <= profile.preferences.age_max);
+      if (currentProfile.preferences?.age_max) {
+        filteredProfiles = filteredProfiles.filter(p => p.age <= currentProfile.preferences!.age_max!);
       }
 
-      // Apply relationship intent filter
-      if (profile.preferences?.relationship_intent) {
+      // Relationship intent filter
+      if (currentProfile.preferences?.relationship_intent) {
+        const intent = currentProfile.preferences.relationship_intent;
         filteredProfiles = filteredProfiles.filter(p => 
-          !p.preferences?.relationship_intent || 
-          p.preferences.relationship_intent === profile.preferences.relationship_intent
+          !p.preferences?.relationship_intent || p.preferences.relationship_intent === intent
         );
       }
 
-      // Apply distance filter
-      if (profile.preferences?.max_distance_km && profile.location) {
-        const maxDistance = profile.preferences.max_distance_km;
+      // Distance filter
+      if (currentProfile.preferences?.max_distance_km && currentProfile.location) {
+        const maxDistance = currentProfile.preferences.max_distance_km;
+        const currentLocation = currentProfile.location;
         filteredProfiles = filteredProfiles.filter(p => {
-          if (!p.location) return true; // Include if no location data
-          
-          const distance = calculateDistance(profile.location, p.location);
-          const withinDistance = distance <= maxDistance;
-          
-          console.log(`[useMatches] Distance to ${p.first_name}: ${distance}km (max: ${maxDistance}km, within: ${withinDistance})`);
-          
-          return withinDistance;
+          if (!p.location) return true;
+          return calculateDistance(currentLocation, p.location) <= maxDistance;
         });
       }
-      
-      console.log('[useMatches] Found profiles:', filteredProfiles.length);
-      console.log('[useMatches] Profile data:', filteredProfiles);
-      setProfiles(filteredProfiles);
-    } catch (error) {
-      console.error('Error fetching potential matches:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const swipe = async (targetUserId: string, action: 'like' | 'pass' | 'superlike') => {
-    if (!user) return { error: new Error('No user logged in') };
+      // Sort by boost
+      const now = new Date();
+      filteredProfiles.sort((a, b) => {
+        const aBoosted = a.boost_expires_at && new Date(a.boost_expires_at) > now;
+        const bBoosted = b.boost_expires_at && new Date(b.boost_expires_at) > now;
+        if (aBoosted && !bBoosted) return -1;
+        if (!aBoosted && bBoosted) return 1;
+        return 0;
+      });
+
+      if (mountedRef.current) {
+        setProfiles(filteredProfiles);
+      }
+    } catch (error) {
+      // Set empty profiles on error so the empty message shows
+      if (mountedRef.current) {
+        setProfiles([]);
+      }
+    } finally {
+      isFetchingProfilesRef.current = false;
+      if (mountedRef.current) setLoading(false);
+    }
+  }, []);
+
+  // Initial fetch - only run once when user and profile are available
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    // Get stable IDs
+    const userId = user?.id;
+    const profileUserId = profile?.user_id;
+    
+    if (!userId || !profileUserId) {
+      setLoading(false);
+      return;
+    }
+
+    // Only fetch if we haven't fetched yet for this user
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+
+    // Single initial fetch
+    fetchSwipeCounter();
+    fetchPotentialMatches();
+
+    // Fallback timeout - ensure loading stops after 10 seconds max
+    const loadingTimeout = setTimeout(() => {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+    }, 10000);
+
+    // Refresh counter every 60 seconds
+    const refreshInterval = setInterval(() => {
+      fetchSwipeCounter();
+    }, 60000);
+
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(loadingTimeout);
+      clearInterval(refreshInterval);
+    };
+  }, [user?.id, profile?.user_id, fetchSwipeCounter, fetchPotentialMatches]);
+
+  // Reset hasFetched when user changes
+  useEffect(() => {
+    return () => {
+      hasFetchedRef.current = false;
+    };
+  }, [user?.id]);
+
+  const swipe = useCallback(async (targetUserId: string, action: 'like' | 'pass' | 'superlike') => {
+    const currentUser = userRef.current;
+    if (!currentUser) return { error: new Error('No user logged in') };
 
     try {
-      // Ensure swipe counter exists before attempting a swipe
+      let cost = 0;
+      if (action === 'like') cost = 1;
+      if (action === 'superlike') cost = 2;
+
       if (!swipeCounter) {
         await fetchSwipeCounter();
       }
-      if (swipeCounter && swipeCounter.remaining <= 0) {
-        return { error: new Error('No swipes left') };
+      
+      if (cost > 0 && swipeCounter && swipeCounter.remaining < cost) {
+        return { error: new Error(`Not enough swipes. Requires ${cost} swipe(s).`) };
       }
 
-      console.log('[useMatches] Swiping:', { targetUserId, action });
-      
-      // IMPORTANT: The SQL function expects the parameter name "swipe_action"
-      // and its type is a Postgres enum (swipe_action).
       const { data, error } = await supabase.rpc('record_swipe', {
-        swiper_uuid: user.id,
+        swiper_uuid: currentUser.id,
         target_uuid: targetUserId,
-        swipe_action: action,
+        swipe_action: action
       });
 
       if (error) throw error;
 
-      console.log('[useMatches] Swipe result:', data);
-
-      // Update local swipe counter
-      if (data.remaining !== undefined) {
-        setSwipeCounter(prev => prev ? { ...prev, remaining: data.remaining } : null);
+      // Update local state immediately
+      setProfiles(current => current.filter(p => p.user_id !== targetUserId));
+      
+      if (swipeCounter && !swipeCounter.is_unlimited && cost > 0) {
+        setSwipeCounter(prev => prev ? {
+          ...prev,
+          remaining: Math.max(0, prev.remaining - cost)
+        } : null);
       }
 
-      // Remove swiped profile from list
-      setProfiles(prev => prev.filter(p => p.user_id !== targetUserId));
+      // Sync with server after a delay
+      setTimeout(() => fetchSwipeCounter(), 1000);
 
-      // Check if it's a match
-      if (data.is_match) {
-        console.log('[useMatches] 🎉 MATCH! Both users liked each other');
-        // The match is automatically created by the database trigger
-        // We'll return this info so the UI can show a match notification
-        return { data: { ...data, is_match: true }, error: null };
-      }
-
-      return { data, error };
+      return { data, error: null };
     } catch (error) {
-      console.error('Error swiping:', error);
+      return { data: null, error };
+    }
+  }, [swipeCounter, fetchSwipeCounter]);
+
+  const canSwipe = useCallback((action: 'like' | 'pass' | 'superlike' = 'like') => {
+    if (swipeCounter?.is_unlimited) return true;
+    
+    let cost = 0;
+    if (action === 'like') cost = 1;
+    if (action === 'superlike') cost = 2;
+    
+    if (cost === 0) return true;
+    return (swipeCounter?.remaining || 0) >= cost;
+  }, [swipeCounter]);
+
+  const getNextRefillTime = useCallback(() => {
+    if (swipeCounter?.next_refill_at) {
+      return new Date(swipeCounter.next_refill_at);
+    }
+    return null;
+  }, [swipeCounter]);
+
+  const undoLastSwipe = useCallback(async () => {
+    const currentUser = userRef.current;
+    if (!currentUser) return { error: new Error('No user logged in') };
+
+    try {
+      const { data: lastSwipe, error: fetchError } = await supabase
+        .from('swipes')
+        .select('*')
+        .eq('swiper_user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (fetchError || !lastSwipe) {
+        return { error: new Error('No swipe to undo') };
+      }
+
+      const { error: deleteError } = await supabase
+        .from('swipes')
+        .delete()
+        .eq('id', lastSwipe.id);
+
+      if (deleteError) throw deleteError;
+
+      fetchPotentialMatches();
+      fetchSwipeCounter();
+
+      return { error: null };
+    } catch (error) {
       return { error };
     }
-  };
+  }, [fetchPotentialMatches, fetchSwipeCounter]);
 
-  const canSwipe = () => {
-    if (!swipeCounter) return false;
-    return swipeCounter.remaining > 0;
-  };
-
-  const getNextRefillTime = () => {
-    if (!swipeCounter?.next_refill_at) return null;
-    return new Date(swipeCounter.next_refill_at);
-  };
+  const refreshSwipeCounter = useCallback(async () => {
+    await fetchSwipeCounter();
+    await fetchPotentialMatches();
+  }, [fetchSwipeCounter, fetchPotentialMatches]);
 
   return {
     profiles,
@@ -272,6 +366,7 @@ export function useMatches() {
     swipe,
     canSwipe,
     getNextRefillTime,
-    refetch: fetchPotentialMatches,
+    undoLastSwipe,
+    refreshSwipeCounter,
   };
 }

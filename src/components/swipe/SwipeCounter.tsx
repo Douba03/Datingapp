@@ -32,57 +32,49 @@ export function SwipeCounter({ counter, onRefillPress }: SwipeCounterProps) {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.counterContainer}>
-        <Text style={styles.remainingText}>
-          {isExhausted ? 'No swipes left' : `${counter.remaining} swipes left`}
-        </Text>
-        {isExhausted && nextRefill && (
-          <Text style={styles.refillText}>
-            Swipes refill in {formatTimeUntilRefill()}
-          </Text>
-        )}
-      </View>
-
-      {isExhausted && onRefillPress && (
-        <Text style={styles.upgradeText} onPress={onRefillPress}>
-          Upgrade to Premium for unlimited swipes
-        </Text>
-      )}
+    <View style={[styles.container, isExhausted && styles.exhaustedContainer]}>
+      <Text style={[styles.remainingText, isExhausted && styles.exhaustedText]}>
+        {isExhausted ? '0' : counter.remaining}
+      </Text>
+      <Text style={[styles.label, isExhausted && styles.exhaustedText]}>
+        {isExhausted && nextRefill ? formatTimeUntilRefill() : 'swipes'}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 12,
-    margin: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
   },
-  counterContainer: {
-    alignItems: 'center',
+  exhaustedContainer: {
+    backgroundColor: colors.error,
+    borderColor: colors.error,
   },
   remainingText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 4,
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.primary,
   },
-  refillText: {
+  label: {
     fontSize: 14,
     color: colors.textSecondary,
+    fontWeight: '600',
   },
-  upgradeText: {
-    fontSize: 14,
-    color: colors.primary,
-    textAlign: 'center',
-    marginTop: 8,
-    textDecorationLine: 'underline',
+  exhaustedText: {
+    color: '#fff',
   },
 });

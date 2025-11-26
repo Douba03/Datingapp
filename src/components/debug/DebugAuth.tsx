@@ -4,11 +4,11 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 
 const colors = {
-  primary: '#FF6B6B',
-  secondary: '#4ECDC4',
-  background: '#F8F9FA',
-  text: '#2C3E50',
-  error: '#E74C3C',
+  primary: '#6366F1',
+  secondary: '#F97316',
+  background: '#FAFBFC',
+  text: '#1F2937',
+  error: '#EF4444',
 };
 
 export function DebugAuth() {

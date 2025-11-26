@@ -24,16 +24,15 @@ export default function PreferencesScreen() {
   const [relationshipIntent, setRelationshipIntent] = useState<string | null>(null);
 
   const genderOptions = [
-    { value: 'man', label: 'Men', icon: '👨' },
-    { value: 'woman', label: 'Women', icon: '👩' },
-    { value: 'non_binary', label: 'Non-binary', icon: '🧑' },
+    { value: 'man', label: 'Men', icon: 'male-outline' },
+    { value: 'woman', label: 'Women', icon: 'female-outline' },
   ];
 
   const relationshipOptions = [
-    { value: 'serious_relationship', label: 'Serious Relationship', emoji: '💍' },
-    { value: 'open_to_long_term', label: 'Open to Long-term', emoji: '💕' },
-    { value: 'not_sure', label: 'Not Sure Yet', emoji: '🤷' },
-    { value: 'casual', label: 'Casual', emoji: '🌟' },
+    { value: 'serious_relationship', label: 'Serious Relationship', icon: 'heart-outline' },
+    { value: 'open_to_long_term', label: 'Open to Long-term', icon: 'infinite-outline' },
+    { value: 'not_sure', label: 'Not Sure Yet', icon: 'help-circle-outline' },
+    { value: 'casual', label: 'Casual', icon: 'wine-outline' },
   ];
 
   const toggleGender = (gender: string) => {
@@ -109,7 +108,11 @@ export default function PreferencesScreen() {
                   ]}
                   onPress={() => toggleGender(option.value)}
                 >
-                  <Text style={styles.genderIcon}>{option.icon}</Text>
+                  <Ionicons 
+                    name={option.icon as any} 
+                    size={24} 
+                    color={seekingGenders.includes(option.value) ? colors.primary : colors.textSecondary} 
+                  />
                   <Text
                     style={[
                       styles.genderLabel,
@@ -193,7 +196,16 @@ export default function PreferencesScreen() {
                   ]}
                   onPress={() => setRelationshipIntent(option.value)}
                 >
-                  <Text style={styles.relationshipEmoji}>{option.emoji}</Text>
+                  <View style={[
+                    styles.iconContainer, 
+                    relationshipIntent === option.value && styles.iconContainerSelected
+                  ]}>
+                    <Ionicons 
+                      name={option.icon as any} 
+                      size={24} 
+                      color={relationshipIntent === option.value ? colors.primary : colors.textSecondary} 
+                    />
+                  </View>
                   <Text
                     style={[
                       styles.relationshipLabel,
@@ -202,6 +214,9 @@ export default function PreferencesScreen() {
                   >
                     {option.label}
                   </Text>
+                  {relationshipIntent === option.value && (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -285,18 +300,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     backgroundColor: colors.surface,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 16,
+    paddingVertical: 12,
     paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   genderOptionSelected: {
     borderColor: colors.primary,
-    backgroundColor: `${colors.primary}15`,
-  },
-  genderIcon: {
-    fontSize: 28,
+    backgroundColor: `${colors.primary}05`,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.1,
   },
   genderLabel: {
     flex: 1,
@@ -343,18 +362,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     backgroundColor: colors.surface,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 16,
+    paddingVertical: 12,
     paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   relationshipOptionSelected: {
     borderColor: colors.primary,
-    backgroundColor: `${colors.primary}15`,
+    backgroundColor: `${colors.primary}05`,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.1,
   },
-  relationshipEmoji: {
-    fontSize: 28,
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconContainerSelected: {
+    backgroundColor: '#fff',
   },
   relationshipLabel: {
     flex: 1,

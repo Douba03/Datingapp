@@ -19,6 +19,8 @@ export default function OnboardingLayout() {
         <Stack.Screen name="preferences" />
         <Stack.Screen name="location" />
         <Stack.Screen name="complete" />
+        <Stack.Screen name="package-selection" />
+        <Stack.Screen name="payment" />
       </Stack>
     </OnboardingProvider>
   );

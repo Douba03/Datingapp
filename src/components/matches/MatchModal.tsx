@@ -1,5 +1,18 @@
-import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, Image } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { 
+  Modal, 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Dimensions, 
+  Image,
+  Animated,
+  Easing,
+  ScrollView,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, shadows } from '../theme/colors';
 
 interface MatchModalProps {
   visible: boolean;
@@ -7,15 +20,45 @@ interface MatchModalProps {
   matchedUserPhoto?: string;
   onContinue: () => void;
   onSendMessage?: () => void;
+  isSuperLike?: boolean;
 }
+
+const { width, height } = Dimensions.get('window');
+const isSmallDevice = width < 375;
 
 export function MatchModal({ 
   visible, 
   matchedUserName, 
   matchedUserPhoto,
   onContinue,
-  onSendMessage 
+  onSendMessage,
+  isSuperLike = false
 }: MatchModalProps) {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const heartAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (visible) {
+      scaleAnim.setValue(0);
+      
+      // Modal entrance animation
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 5,
+        tension: 100,
+        useNativeDriver: true,
+      }).start();
+
+      // Only the main heart pulses - subtle animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(heartAnim, { toValue: 1.08, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(heartAnim, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ])
+      ).start();
+    }
+  }, [visible]);
+
   return (
     <Modal
       visible={visible}
@@ -24,335 +67,270 @@ export function MatchModal({
       onRequestClose={onContinue}
     >
       <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
-          {/* Gradient Top Border */}
-          <View style={styles.topBorder} />
+        <Animated.View style={[styles.modalContainer, { transform: [{ scale: scaleAnim }] }]}>
+          {/* Top gradient */}
+          <LinearGradient
+            colors={isSuperLike ? [colors.superlike, colors.primary] : [colors.primary, colors.secondary]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.topBorder}
+          />
           
-          {/* Confetti/Hearts Background */}
-          <View style={styles.heartsContainer}>
-            <Text style={styles.heartEmoji}>💕</Text>
-            <Text style={[styles.heartEmoji, styles.heart2]}>❤️</Text>
-            <Text style={[styles.heartEmoji, styles.heart3]}>💖</Text>
-            <Text style={[styles.heartEmoji, styles.heart4]}>💗</Text>
-            <Text style={[styles.heartEmoji, styles.heart5]}>💝</Text>
-            <Text style={[styles.heartEmoji, styles.heart6]}>✨</Text>
-            <Text style={[styles.heartEmoji, styles.heart7]}>⭐</Text>
-            <Text style={[styles.heartEmoji, styles.heart8]}>🎉</Text>
-          </View>
-
-          {/* Match Icon Badge */}
-          <View style={styles.iconContainer}>
-            <View style={styles.iconCircle}>
-              <Text style={styles.iconText}>💞</Text>
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Main animated icon - only this one pulses */}
+            <View style={styles.iconContainer}>
+              <Animated.View style={[styles.iconCircle, { transform: [{ scale: heartAnim }] }]}>
+                <LinearGradient
+                  colors={isSuperLike ? [colors.superlike, '#B88AE8'] : [colors.primary, colors.primaryLight]}
+                  style={styles.iconGradient}
+                >
+                  <Text style={styles.iconEmoji}>{isSuperLike ? '⭐' : '💕'}</Text>
+                </LinearGradient>
+              </Animated.View>
             </View>
-          </View>
 
-          {/* Title */}
-          <Text style={styles.title}>IT'S A MATCH!</Text>
-          
-          {/* Subtitle */}
-          <Text style={styles.subtitle}>
-            You and <Text style={styles.matchName}>{matchedUserName}</Text> liked each other! 🎊
-          </Text>
+            {/* Title */}
+            <Text style={styles.title}>It's a Match! 🎉</Text>
+            
+            {/* Subtitle */}
+            <Text style={styles.subtitle}>
+              {isSuperLike ? (
+                <><Text style={styles.matchName}>{matchedUserName}</Text> Super Liked You!</>
+              ) : (
+                <>You and <Text style={styles.matchName}>{matchedUserName}</Text> liked each other!</>
+              )}
+            </Text>
 
-          {/* Divider */}
-          <View style={styles.divider} />
+            {/* Static emoji row - no animation */}
+            <View style={styles.emojiRow}>
+              <Text style={styles.emoji}>💕</Text>
+              <Text style={styles.emoji}>🥰</Text>
+              <Text style={styles.emoji}>💘</Text>
+              <Text style={styles.emoji}>😍</Text>
+              <Text style={styles.emoji}>💝</Text>
+            </View>
 
-          {/* Profile Photo (if available) */}
-          {matchedUserPhoto && (
-            <View style={styles.photoContainer}>
-              <Image 
-                source={{ uri: matchedUserPhoto }} 
-                style={styles.photo}
-                resizeMode="cover"
-              />
-              <View style={styles.photoOverlay}>
-                <Text style={styles.heartOverlay}>💕</Text>
+            {/* Photo */}
+            {matchedUserPhoto && (
+              <View style={styles.photoContainer}>
+                <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.photoBorder}>
+                  <Image source={{ uri: matchedUserPhoto }} style={styles.photo} resizeMode="cover" />
+                </LinearGradient>
+                <View style={styles.photoHeartBadge}>
+                  <Text style={styles.heartBadgeEmoji}>💕</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Tips - static emojis */}
+            <View style={styles.tipsCard}>
+              <View style={styles.tipRow}>
+                <Text style={styles.tipEmoji}>💬</Text>
+                <Text style={styles.tipText}>Start a conversation!</Text>
+              </View>
+              <View style={styles.tipRow}>
+                <Text style={styles.tipEmoji}>✨</Text>
+                <Text style={styles.tipText}>Be genuine and friendly</Text>
+              </View>
+              <View style={styles.tipRow}>
+                <Text style={styles.tipEmoji}>🎯</Text>
+                <Text style={styles.tipText}>Check your Messages tab</Text>
               </View>
             </View>
-          )}
 
-          {/* Match Info Card */}
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoIcon}>✨</Text>
-              <Text style={styles.infoText}>Start a conversation and get to know each other!</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoIcon}>💬</Text>
-              <Text style={styles.infoText}>Be respectful and have fun chatting!</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoIcon}>🎯</Text>
-              <Text style={styles.infoText}>Your match is waiting in your Messages tab!</Text>
-            </View>
-          </View>
-
-          {/* Action Buttons */}
-          <View style={styles.buttonContainer}>
-            {onSendMessage && (
-              <TouchableOpacity 
-                style={styles.primaryButton}
-                onPress={onSendMessage}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.primaryButtonText}>💬 Send Message</Text>
+            {/* Buttons */}
+            <View style={styles.buttonContainer}>
+              {onSendMessage && (
+                <TouchableOpacity style={styles.primaryButton} onPress={onSendMessage} activeOpacity={0.85}>
+                  <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.buttonGradient}>
+                    <Text style={styles.primaryButtonText}>💬 Send Message</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity style={styles.secondaryButton} onPress={onContinue} activeOpacity={0.85}>
+                <Text style={styles.secondaryButtonText}>
+                  {onSendMessage ? 'Keep Swiping →' : '✓ Continue'}
+                </Text>
               </TouchableOpacity>
-            )}
-            
-            <TouchableOpacity 
-              style={styles.secondaryButton}
-              onPress={onContinue}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.secondaryButtonText}>
-                {onSendMessage ? '⏭️ Keep Swiping' : '✅ Continue'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+            </View>
 
-          {/* Celebration Message */}
-          <Text style={styles.celebrationText}>
-            🎉 Congratulations on your new match! 🎉
-          </Text>
-        </View>
+            {/* Bottom text */}
+            <Text style={styles.celebrationText}>🎊 Congratulations! 🎊</Text>
+          </ScrollView>
+        </Animated.View>
       </View>
     </Modal>
   );
 }
 
-const { width, height } = Dimensions.get('window');
-
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(26, 22, 37, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   modalContainer: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fff',
     borderRadius: 24,
-    width: Math.min(width - 40, 450),
+    width: '100%',
+    maxWidth: 360,
     maxHeight: height * 0.85,
     overflow: 'hidden',
-    position: 'relative',
+    ...shadows.large,
   },
   topBorder: {
-    height: 6,
-    background: 'linear-gradient(90deg, #FF6B9D 0%, #C06C84 25%, #F67280 50%, #FF6B9D 75%, #C06C84 100%)',
-    backgroundColor: '#FF6B9D', // Fallback for non-web
+    height: 5,
   },
-  heartsContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    opacity: 0.15,
-    pointerEvents: 'none',
-  },
-  heartEmoji: {
-    position: 'absolute',
-    fontSize: 40,
-  },
-  heart2: {
-    top: 50,
-    right: 30,
-    fontSize: 35,
-  },
-  heart3: {
-    top: 120,
-    left: 40,
-    fontSize: 30,
-  },
-  heart4: {
-    top: 200,
-    right: 50,
-    fontSize: 45,
-  },
-  heart5: {
-    top: 280,
-    left: 60,
-    fontSize: 38,
-  },
-  heart6: {
-    top: 100,
-    right: 70,
-    fontSize: 32,
-  },
-  heart7: {
-    top: 180,
-    left: 20,
-    fontSize: 36,
-  },
-  heart8: {
-    top: 60,
-    left: 70,
-    fontSize: 34,
+  scrollContent: {
+    padding: 20,
+    alignItems: 'center',
   },
   iconContainer: {
-    alignItems: 'center',
-    marginTop: 32,
-    zIndex: 10,
+    marginTop: 8,
+    marginBottom: 16,
   },
   iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#FFE5EC',
-    borderWidth: 4,
-    borderColor: '#FF6B9D',
+    width: isSmallDevice ? 80 : 90,
+    height: isSmallDevice ? 80 : 90,
+    borderRadius: isSmallDevice ? 40 : 45,
+    overflow: 'hidden',
+    ...shadows.glow,
+  },
+  iconGradient: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FF6B9D',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
-  iconText: {
-    fontSize: 50,
+  iconEmoji: {
+    fontSize: isSmallDevice ? 38 : 44,
   },
   title: {
-    fontSize: 32,
+    fontSize: isSmallDevice ? 24 : 28,
     fontWeight: '800',
-    color: '#FF6B9D',
+    color: colors.primary,
     textAlign: 'center',
-    marginTop: 24,
-    marginHorizontal: 20,
-    letterSpacing: 1.5,
-    textShadowColor: 'rgba(255, 107, 157, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    color: colors.textSecondary,
     textAlign: 'center',
-    marginTop: 12,
-    marginHorizontal: 24,
-    lineHeight: 24,
+    lineHeight: 22,
+    paddingHorizontal: 10,
   },
   matchName: {
     fontWeight: '700',
-    color: '#FF6B9D',
-    fontSize: 17,
+    color: colors.primary,
   },
-  divider: {
-    height: 2,
-    backgroundColor: '#FF6B9D',
-    marginHorizontal: 40,
-    marginTop: 20,
-    marginBottom: 20,
-    borderRadius: 1,
-    opacity: 0.3,
+  emojiRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 14,
+    marginBottom: 16,
+  },
+  emoji: {
+    fontSize: 20,
   },
   photoContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
     position: 'relative',
   },
-  photo: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 4,
-    borderColor: '#FF6B9D',
+  photoBorder: {
+    width: isSmallDevice ? 100 : 110,
+    height: isSmallDevice ? 100 : 110,
+    borderRadius: isSmallDevice ? 50 : 55,
+    padding: 3,
+    ...shadows.glow,
   },
-  photoOverlay: {
+  photo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 52,
+    backgroundColor: colors.border,
+  },
+  photoHeartBadge: {
     position: 'absolute',
-    bottom: -5,
-    right: '50%',
-    marginRight: -55,
-    backgroundColor: '#FF6B9D',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    bottom: 0,
+    right: -5,
+    backgroundColor: '#fff',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#ffffff',
+    ...shadows.small,
   },
-  heartOverlay: {
-    fontSize: 20,
+  heartBadgeEmoji: {
+    fontSize: 18,
   },
-  infoCard: {
-    backgroundColor: '#FFF0F5',
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 20,
-    marginBottom: 24,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF6B9D',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+  tipsCard: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 14,
+    padding: 14,
+    width: '100%',
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
   },
-  infoRow: {
+  tipRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 10,
   },
-  infoIcon: {
-    fontSize: 20,
-    marginRight: 12,
-    marginTop: 2,
+  tipEmoji: {
+    fontSize: 16,
   },
-  infoText: {
+  tipText: {
     flex: 1,
-    fontSize: 14,
-    color: '#444',
-    lineHeight: 20,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 18,
   },
   buttonContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    gap: 12,
+    width: '100%',
+    gap: 10,
   },
   primaryButton: {
-    backgroundColor: '#FF6B9D',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 16,
+    borderRadius: 14,
+    overflow: 'hidden',
+    ...shadows.glow,
+  },
+  buttonGradient: {
     alignItems: 'center',
-    shadowColor: '#FF6B9D',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    justifyContent: 'center',
+    paddingVertical: 14,
   },
   primaryButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 0.5,
   },
   secondaryButton: {
-    backgroundColor: '#ffffff',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 16,
+    backgroundColor: '#fff',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 14,
     borderWidth: 2,
-    borderColor: '#FF6B9D',
+    borderColor: colors.primary,
   },
   secondaryButtonText: {
-    color: '#FF6B9D',
-    fontSize: 16,
+    color: colors.primary,
+    fontSize: 15,
     fontWeight: '600',
-    letterSpacing: 0.5,
   },
   celebrationText: {
     fontSize: 13,
-    color: '#999',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    color: colors.textSecondary,
+    marginTop: 14,
     fontStyle: 'italic',
   },
 });
-

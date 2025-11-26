@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,6 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Button } from '../../components/ui/Button';
 import { colors } from '../../components/theme/colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,15 +22,18 @@ export default function BasicInfoScreen() {
   const { updateData } = useOnboarding();
   const [firstName, setFirstName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [gender, setGender] = useState<string | null>(null);
   const [customGender, setCustomGender] = useState('');
+  const [ageError, setAgeError] = useState<string | null>(null);
+  
+  // Manual date input states
+  const [year, setYear] = useState('');
+  const [month, setMonth] = useState('');
+  const [day, setDay] = useState('');
 
   const genderOptions = [
-    { value: 'man', label: 'Man', icon: '👨' },
-    { value: 'woman', label: 'Woman', icon: '👩' },
-    { value: 'non_binary', label: 'Non-binary', icon: '🧑' },
-    { value: 'custom', label: 'Custom', icon: '✨' },
+    { value: 'man', label: 'Man', icon: 'male-outline' },
+    { value: 'woman', label: 'Woman', icon: 'female-outline' },
   ];
 
   const calculateAge = (dob: Date) => {
@@ -43,6 +45,48 @@ export default function BasicInfoScreen() {
     }
     return age;
   };
+
+  useEffect(() => {
+    if (year && month && day) {
+      const yearNum = parseInt(year, 10);
+      const monthNum = parseInt(month, 10);
+      const dayNum = parseInt(day, 10);
+      
+      // Validate inputs
+      if (yearNum < 1924 || yearNum > new Date().getFullYear()) {
+        setAgeError('Please enter a valid year');
+        return;
+      }
+      
+      if (monthNum < 1 || monthNum > 12) {
+        setAgeError('Please enter a valid month (1-12)');
+        return;
+      }
+      
+      // Check days in month
+      const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
+      if (dayNum < 1 || dayNum > daysInMonth) {
+        setAgeError(`Please enter a valid day (1-${daysInMonth})`);
+        return;
+      }
+      
+      const date = new Date(yearNum, monthNum - 1, dayNum);
+      
+      // Check if date is in the future
+      if (date > new Date()) {
+        setAgeError('Date cannot be in the future');
+        return;
+      }
+      
+      const age = calculateAge(date);
+      setDateOfBirth(date);
+      setAgeError(null);
+      
+      if (age < 18) {
+        setAgeError('You must be at least 18 years old to use this app');
+      }
+    }
+  }, [year, month, day]);
 
   const validateAndContinue = () => {
     // Validation
@@ -84,23 +128,6 @@ export default function BasicInfoScreen() {
     router.push('/(onboarding)/photos');
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    // On Android, the picker closes when a date is selected
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
-    }
-    
-    if (selectedDate) {
-      setDateOfBirth(selectedDate);
-      // On iOS, close the picker after selection
-      if (Platform.OS === 'ios') {
-        setShowDatePicker(false);
-      }
-    } else if (event.type === 'dismissed') {
-      // User cancelled
-      setShowDatePicker(false);
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -138,15 +165,18 @@ export default function BasicInfoScreen() {
             {/* First Name */}
             <View style={styles.inputSection}>
               <Text style={styles.label}>First Name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your first name"
-                placeholderTextColor={colors.textSecondary}
-                value={firstName}
-                onChangeText={setFirstName}
-                maxLength={50}
-                autoFocus
-              />
+              <View style={styles.inputWrapper}>
+                <Ionicons name="person-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your first name"
+                  placeholderTextColor={colors.textSecondary}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  maxLength={50}
+                  autoFocus
+                />
+              </View>
               <Text style={styles.helperText}>
                 This is how it will appear on your profile
               </Text>
@@ -155,72 +185,72 @@ export default function BasicInfoScreen() {
             {/* Date of Birth */}
             <View style={styles.inputSection}>
               <Text style={styles.label}>Date of Birth</Text>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text style={dateOfBirth ? styles.dateText : styles.datePlaceholder}>
-                  {dateOfBirth
-                    ? dateOfBirth.toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })
-                    : 'Select your date of birth'}
-                </Text>
-                <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
+              <View style={styles.dateInputContainer}>
+                <View style={styles.dateInputWrapper}>
+                  <Text style={styles.dateInputLabel}>Year</Text>
+                  <TextInput
+                    style={styles.dateInput}
+                    placeholder="YYYY"
+                    placeholderTextColor={colors.textSecondary}
+                    value={year}
+                    onChangeText={(text) => {
+                      const numeric = text.replace(/[^0-9]/g, '');
+                      if (numeric.length <= 4) {
+                        setYear(numeric);
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={4}
+                  />
+                </View>
+                <View style={styles.dateInputWrapper}>
+                  <Text style={styles.dateInputLabel}>Month</Text>
+                  <TextInput
+                    style={styles.dateInput}
+                    placeholder="MM"
+                    placeholderTextColor={colors.textSecondary}
+                    value={month}
+                    onChangeText={(text) => {
+                      const numeric = text.replace(/[^0-9]/g, '');
+                      if (numeric.length <= 2) {
+                        setMonth(numeric);
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={2}
+                  />
+                </View>
+                <View style={styles.dateInputWrapper}>
+                  <Text style={styles.dateInputLabel}>Day</Text>
+                  <TextInput
+                    style={styles.dateInput}
+                    placeholder="DD"
+                    placeholderTextColor={colors.textSecondary}
+                    value={day}
+                    onChangeText={(text) => {
+                      const numeric = text.replace(/[^0-9]/g, '');
+                      if (numeric.length <= 2) {
+                        setDay(numeric);
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={2}
+                  />
+                </View>
+              </View>
               {dateOfBirth && (
-                <Text style={styles.helperText}>
-                  Age: {calculateAge(dateOfBirth)} years old
-                </Text>
+                <View>
+                  <Text style={styles.helperText}>
+                    Age: {calculateAge(dateOfBirth)} years old
+                  </Text>
+                  {ageError && (
+                    <Text style={styles.errorText}>
+                      ⚠️ {ageError}
+                    </Text>
+                  )}
+                </View>
               )}
             </View>
-
-            {showDatePicker && Platform.OS !== 'web' && (
-              <View style={styles.datePickerContainer}>
-                <DateTimePicker
-                  value={dateOfBirth || new Date(2000, 0, 1)}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={handleDateChange}
-                  maximumDate={new Date()}
-                  minimumDate={new Date(1940, 0, 1)}
-                  textColor={colors.text}
-                />
-                {Platform.OS === 'ios' && (
-                  <TouchableOpacity
-                    style={styles.datePickerDone}
-                    onPress={() => setShowDatePicker(false)}
-                  >
-                    <Text style={styles.datePickerDoneText}>Done</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            {/* Fallback for web */}
-            {showDatePicker && Platform.OS === 'web' && (
-              <View style={styles.webDatePicker}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="YYYY-MM-DD"
-                  value={dateOfBirth ? dateOfBirth.toISOString().split('T')[0] : ''}
-                  onChangeText={(text) => {
-                    const date = new Date(text);
-                    if (!isNaN(date.getTime())) {
-                      setDateOfBirth(date);
-                    }
-                  }}
-                />
-                <TouchableOpacity
-                  style={styles.datePickerDone}
-                  onPress={() => setShowDatePicker(false)}
-                >
-                  <Text style={styles.datePickerDoneText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            )}
 
             {/* Gender */}
             <View style={styles.inputSection}>
@@ -235,7 +265,11 @@ export default function BasicInfoScreen() {
                     ]}
                     onPress={() => setGender(option.value)}
                   >
-                    <Text style={styles.genderIcon}>{option.icon}</Text>
+                    <Ionicons 
+                      name={option.icon as any} 
+                      size={28} 
+                      color={gender === option.value ? colors.primary : colors.textSecondary} 
+                    />
                     <Text
                       style={[
                         styles.genderLabel,
@@ -334,12 +368,20 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 12,
   },
-  input: {
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+  },
+  inputIcon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
     paddingVertical: 16,
     fontSize: 16,
     color: colors.text,
@@ -349,24 +391,36 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 8,
   },
-  dateButton: {
+  errorText: {
+    fontSize: 14,
+    color: '#ef4444',
+    marginTop: 8,
+    fontWeight: '600',
+  },
+  dateInputContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  dateInputWrapper: {
+    flex: 1,
+  },
+  dateInputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  dateInput: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dateText: {
+    paddingHorizontal: 12,
+    paddingVertical: 14,
     fontSize: 16,
     color: colors.text,
-  },
-  datePlaceholder: {
-    fontSize: 16,
-    color: colors.textSecondary,
+    textAlign: 'center',
   },
   genderOptions: {
     flexDirection: 'row',

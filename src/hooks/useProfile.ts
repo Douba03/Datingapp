@@ -7,6 +7,48 @@ export function useProfile() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
+  const boostProfile = async () => {
+    if (!user) return { error: new Error('No user logged in') };
+    
+    if (!user.is_premium) {
+      return { error: new Error('Premium feature') };
+    }
+
+    try {
+      // Check if boost already used today
+      const { data: profileData, error: fetchError } = await supabase
+        .from('profiles')
+        .select('boost_expires_at')
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError) {
+        console.error('[useProfile] Error fetching profile:', fetchError);
+        throw fetchError;
+      }
+
+      const now = new Date();
+      const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+
+      // Update boost_expires_at
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ boost_expires_at: oneHourLater.toISOString() })
+        .eq('user_id', user.id);
+
+      if (updateError) {
+        console.error('[useProfile] Error boosting profile:', updateError);
+        throw updateError;
+      }
+
+      console.log('[useProfile] Profile boosted successfully');
+      return { data: { success: true, expires_at: oneHourLater.toISOString() }, error: null };
+    } catch (error) {
+      console.error('[useProfile] Error boosting profile:', error);
+      return { error };
+    }
+  };
+
   const createProfile = async (onboardingData: OnboardingData) => {
     if (!user) {
       return { error: new Error('No user logged in') };
@@ -104,5 +146,6 @@ export function useProfile() {
   return {
     loading,
     createProfile,
+    boostProfile,
   };
 }

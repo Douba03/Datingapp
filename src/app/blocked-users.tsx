@@ -230,15 +230,6 @@ export default function BlockedUsersScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/(tabs)/settings')}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Blocked Users</Text>
-        <View style={styles.headerRight} />
-      </View>
-
       {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -271,27 +262,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  headerRight: {
-    width: 40,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -306,19 +276,19 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    padding: 32,
   },
   emptyTitle: {
-    fontSize: 22,
+    marginTop: 16,
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.text,
-    marginTop: 16,
   },
   emptyText: {
+    marginTop: 8,
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginTop: 8,
     lineHeight: 24,
   },
   listContainer: {
@@ -328,28 +298,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: 12,
     padding: 16,
+    borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
   userImage: {
     width: 60,
     height: 60,
     borderRadius: 30,
     marginRight: 16,
-    borderWidth: 2,
-    borderColor: colors.border,
   },
   userInfo: {
     flex: 1,
   },
   userName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: colors.text,
     marginBottom: 4,
@@ -362,18 +330,19 @@ const styles = StyleSheet.create({
   blockedDate: {
     fontSize: 12,
     color: colors.textSecondary,
+    fontStyle: 'italic',
   },
   unblockButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.success,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
   },
   unblockButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   unblockButtonText: {
     color: '#fff',
@@ -381,4 +350,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

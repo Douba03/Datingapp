@@ -27,6 +27,9 @@ export interface OnboardingData {
   city?: string;
   country?: string;
   location?: { lat: number; lng: number };
+  
+  // Package Selection
+  selectedPackage?: 'basic' | 'premium';
 }
 
 interface OnboardingContextType {

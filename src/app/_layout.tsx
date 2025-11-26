@@ -5,26 +5,47 @@ import { useAuth } from '../hooks/useAuth';
 import { View, Text, ActivityIndicator, Platform } from 'react-native';
 import { notificationService } from '../services/notifications';
 import { supabase } from '../services/supabase/client';
+import { PurchaseService } from '../services/iap/purchaseService';
 
 const colors = {
-  primary: '#FF6B6B',
-  secondary: '#4ECDC4',
-  accent: '#45B7D1',
-  background: '#F8F9FA',
+  primary: '#6366F1',
+  secondary: '#F97316',
+  accent: '#10B981',
+  background: '#FAFBFC',
   surface: '#FFFFFF',
-  text: '#2C3E50',
-  textSecondary: '#7F8C8D',
-  border: '#E1E8ED',
-  success: '#27AE60',
-  warning: '#F39C12',
-  error: '#E74C3C',
-  like: '#FF6B6B',
-  pass: '#95A5A6',
-  superlike: '#45B7D1',
+  text: '#1F2937',
+  textSecondary: '#6B7280',
+  border: '#E5E7EB',
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  like: '#EC4899',
+  pass: '#9CA3AF',
+  superlike: '#8B5CF6',
 };
 
 export default function RootLayout() {
   const { user, session, loading, supabaseError } = useAuth();
+
+  // Initialize IAP when app starts (fails gracefully if not available)
+  useEffect(() => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      PurchaseService.initialize().catch((error) => {
+        // Non-critical error - IAP is optional, app should still work
+        console.warn('[IAP] Failed to initialize (non-critical):', error);
+      });
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (Platform.OS === 'ios' || Platform.OS === 'android') {
+        PurchaseService.disconnect().catch((error) => {
+          // Non-critical error - cleanup failure is OK
+          console.warn('[IAP] Failed to disconnect (non-critical):', error);
+        });
+      }
+    };
+  }, []);
 
   // Test push notifications when user is authenticated
   useEffect(() => {
@@ -78,6 +99,7 @@ export default function RootLayout() {
   }, [user, session]);
 
   // Only block on loading when we truly have no session/user yet
+  // Add timeout fallback - if loading takes more than 10 seconds, show auth screen
   if (loading && !user && !session) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
@@ -88,6 +110,9 @@ export default function RootLayout() {
             {supabaseError}
           </Text>
         )}
+        <Text style={{ marginTop: 8, color: colors.textSecondary, fontSize: 12, textAlign: 'center', paddingHorizontal: 20 }}>
+          If this takes too long, check your internet connection
+        </Text>
       </View>
     );
   }

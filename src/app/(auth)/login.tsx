@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,218 +9,338 @@ import {
   Alert,
   ScrollView,
   TouchableOpacity,
+  Animated,
+  Easing,
+  Dimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../services/supabase/client';
-import { Button } from '../../components/ui/Button';
-import { colors } from '../../components/theme/colors';
+import { colors, shadows } from '../../components/theme/colors';
+import { Ionicons } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
+const isSmallDevice = width < 375;
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
-  const [showDebug, setShowDebug] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [errorType, setErrorType] = useState<'email' | 'password' | 'general' | ''>('');
+  const [showPassword, setShowPassword] = useState(false);
   
-  const { signIn, signUp, user, session } = useAuth();
+  const { signIn, signUp } = useAuth();
   const router = useRouter();
 
-  const addDebugLog = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setDebugInfo(prev => [...prev, `[${timestamp}] ${message}`]);
-    console.log(`[DEBUG] ${message}`);
-  };
+  // Only logo pulses - simple animation
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const clearDebugLog = () => {
-    setDebugInfo([]);
-  };
+  useEffect(() => {
+    // Fade in on mount
+    Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+
+    // Subtle pulse for logo only
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(heartScale, { toValue: 1.05, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(heartScale, { toValue: 1, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
   const handleAuth = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+    setErrorMessage('');
+    setErrorType('');
+    
+    if (isForgotPassword) {
+      handleResetPassword();
+      return;
+    }
+
+    if (!email || (!isForgotPassword && !password)) {
+      setErrorMessage('Please fill in all fields');
+      setErrorType('general');
+      return;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setErrorMessage('Please enter a valid email address');
+      setErrorType('email');
+      return;
+    }
+
+    if (isSignUp && password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters');
+      setErrorType('password');
       return;
     }
 
     const emailNormalized = email.trim().toLowerCase();
-
-    addDebugLog(`Starting ${isSignUp ? 'sign up' : 'sign in'} process`);
-    addDebugLog(`Email: ${emailNormalized}`);
-    addDebugLog(`Password length: ${password.length}`);
     
     setLoading(true);
     try {
-      addDebugLog(`Calling ${isSignUp ? 'signUp' : 'signIn'} function...`);
-      
-      const { data, error } = isSignUp 
-        ? await signUp(emailNormalized, password)
-        : await signIn(emailNormalized, password);
-
-      addDebugLog(`Auth function completed`);
-      addDebugLog(`Data: ${JSON.stringify(data, null, 2)}`);
-      addDebugLog(`Error: ${error ? JSON.stringify(error, null, 2) : 'null'}`);
-
-      if (error) {
-        const errorMessage = error instanceof Error ? error.message : (error as any)?.message || 'Unknown error';
-        addDebugLog(`❌ Authentication failed: ${errorMessage}`);
-        Alert.alert('Error', errorMessage);
-      } else {
-        addDebugLog(`✅ Authentication successful!`);
-        addDebugLog(`Data.user: ${JSON.stringify(data?.user, null, 2)}`);
-        addDebugLog(`Data.session: ${JSON.stringify(data?.session, null, 2)}`);
-
-        // Force-fetch session immediately to avoid UI stall
-        addDebugLog(`Fetching fresh session from Supabase...`);
-        const { data: { session: freshSession }, error: sessionErr } = await supabase.auth.getSession();
-        if (sessionErr) {
-          addDebugLog(`⚠️ getSession error: ${sessionErr.message}`);
-        } else {
-          addDebugLog(`Fresh session: ${JSON.stringify(!!freshSession)}`);
-        }
-
-        // Decide destination immediately to avoid UI stall
-        try {
-          const authUserId = freshSession?.user?.id || data?.user?.id;
-          addDebugLog(`Checking onboarding via profiles for user: ${authUserId}`);
-          if (authUserId) {
-            const { data: dbProfile, error: profileErr } = await supabase
-              .from('profiles')
-              .select('first_name,bio,photos,interests')
-              .eq('user_id', authUserId)
-              .single();
-
-            if (profileErr) {
-              addDebugLog(`Profile fetch error (ok if new user): ${profileErr.message}`);
-            }
-
-            const emailPrefix = (emailNormalized || '').split('@')[0];
-            const hasCompletedOnboarding = !!dbProfile && (
-              (dbProfile.first_name && dbProfile.first_name !== emailPrefix) ||
-              (dbProfile.bio && dbProfile.bio.length > 0) ||
-              (Array.isArray(dbProfile.photos) && dbProfile.photos.length > 0) ||
-              (Array.isArray(dbProfile.interests) && dbProfile.interests.length > 0)
-            );
-
-            addDebugLog(`Onboarding computed: ${JSON.stringify({ hasCompletedOnboarding })}`);
-            const dest = hasCompletedOnboarding ? '/(tabs)' : '/(onboarding)/welcome';
-            addDebugLog(`Routing to: ${dest}`);
-            router.replace(dest);
+      if (isSignUp) {
+        // Sign up flow
+        const { data, error } = await signUp(emailNormalized, password);
+        
+        if (error) {
+          let errorMsg = (error instanceof Error ? error.message : (error as any)?.message) || 'An unknown error occurred';
+          if (errorMsg.includes('already registered')) {
+            setErrorMessage('Email already registered. Sign in instead.');
+            setErrorType('email');
           } else {
-            addDebugLog(`No auth user id found; routing to root`);
-            router.replace('/');
+            setErrorMessage(errorMsg);
+            setErrorType('general');
           }
-        } catch (routingErr: any) {
-          addDebugLog(`Routing decision error: ${routingErr?.message || routingErr}`);
+        } else if (data?.user?.identities?.length === 0) {
+          Alert.alert('Signup Failed', 'This email is already registered.');
+        } else {
+          // New user - go to onboarding
+          router.replace('/(onboarding)/welcome');
+        }
+      } else {
+        // Sign in flow
+        const result = await signIn(emailNormalized, password);
+        const { data, error, needsOnboarding } = result as any;
+
+        if (error) {
+          let errorMsg = (error instanceof Error ? error.message : (error as any)?.message) || 'An unknown error occurred';
+          
+          if (errorMsg.includes('Invalid login credentials')) {
+            setErrorMessage('Invalid email or password');
+            setErrorType('general');
+          } else {
+            setErrorMessage(errorMsg);
+            setErrorType('general');
+          }
+        } else if (needsOnboarding) {
+          // User exists in auth but no profile - show message then go to onboarding
+          if (Platform.OS === 'web') {
+            window.alert('Welcome! Your account exists but you haven\'t completed your profile yet. Let\'s set it up!');
+          } else {
+            Alert.alert(
+              'Complete Your Profile',
+              'Welcome! Your account exists but you haven\'t completed your profile yet. Let\'s set it up!',
+              [{ text: 'Continue', onPress: () => router.replace('/(onboarding)/welcome') }]
+            );
+            return; // Don't navigate yet, wait for alert button
+          }
+          router.replace('/(onboarding)/welcome');
+        } else if (data?.user?.id) {
+          // Existing user with profile - check if onboarding completed
+          let dbProfile: any = null;
+          try {
+            const profileResult = await Promise.race([
+              supabase.from('profiles').select('first_name,bio,photos,interests').eq('user_id', data.user.id).single(),
+              new Promise((resolve) => setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 5000)) as Promise<any>
+            ]);
+            dbProfile = (profileResult as any)?.data || null;
+          } catch (err) {
+            dbProfile = null;
+          }
+
+          const emailPrefix = (emailNormalized || '').split('@')[0];
+          const hasCompletedOnboarding = !!dbProfile && (
+            (dbProfile.first_name && dbProfile.first_name !== emailPrefix) ||
+            (dbProfile.bio && dbProfile.bio.length > 0) ||
+            (Array.isArray(dbProfile.photos) && dbProfile.photos.length > 0) ||
+            (Array.isArray(dbProfile.interests) && dbProfile.interests.length > 0)
+          );
+
+          router.replace(hasCompletedOnboarding ? '/(tabs)' : '/(onboarding)/welcome');
+        } else {
           router.replace('/');
         }
       }
     } catch (error) {
-      addDebugLog(`💥 Exception caught: ${error}`);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setErrorMessage('');
+    setErrorType('');
+    
+    if (!email) {
+      setErrorMessage('Please enter your email');
+      setErrorType('email');
+      return;
+    }
+
+    const emailNormalized = email.trim().toLowerCase();
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(emailNormalized, {
+        redirectTo: 'https://zfnwtnqwokwvuxxwxgsr.supabase.co/auth/v1/verify'
+      });
+
+      if (error) {
+        if (error.message.includes('user not found')) {
+          setErrorMessage('Email not registered. Sign up instead.');
+          setErrorType('email');
+        } else {
+          setErrorMessage(error.message || 'Unknown error');
+          setErrorType('general');
+        }
+      } else {
+        setResetSent(true);
+      }
+    } catch (error) {
       Alert.alert('Error', 'Something went wrong');
     } finally {
       setLoading(false);
-      addDebugLog(`Loading state set to false`);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-          <Text style={styles.title}>
-            {isSignUp ? 'Create Account' : 'Welcome Back'}
-          </Text>
-          <Text style={styles.subtitle}>
-            {isSignUp ? 'Join Partner Productivity' : 'Sign in to continue'}
-          </Text>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#FDF8F8', '#FFF0F5', '#FAF0FF', '#FDF8F8']}
+        style={styles.backgroundGradient}
+      />
 
-          <View style={styles.form}>
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-            />
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+            {/* Logo - only this one has animation */}
+            <View style={styles.brandContainer}>
+              <Animated.View style={[styles.logoCircle, { transform: [{ scale: heartScale }] }]}>
+                <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.logoGradient}>
+                  <Text style={styles.logoEmoji}>💕</Text>
+                </LinearGradient>
+              </Animated.View>
+              <Text style={styles.brandName}>Partner</Text>
+              <Text style={styles.tagline}>Find your perfect match ✨</Text>
+            </View>
 
-            <Button
-              title={isSignUp ? 'Sign Up' : 'Sign In'}
-              onPress={handleAuth}
-              loading={loading}
-              style={styles.authButton}
-            />
-
-            <Button
-              title={isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-              onPress={() => setIsSignUp(!isSignUp)}
-              variant="outline"
-              style={styles.switchButton}
-            />
-
-            {/* Debug Toggle Button */}
-            <TouchableOpacity 
-              style={styles.debugToggle}
-              onPress={() => setShowDebug(!showDebug)}
-            >
-              <Text style={styles.debugToggleText}>
-                {showDebug ? '🔍 Hide Debug' : '🐛 Show Debug'}
+            {/* Form */}
+            <View style={styles.formCard}>
+              <Text style={styles.title}>
+                {isForgotPassword ? 'Reset Password' : isSignUp ? 'Create Account' : 'Welcome Back'}
               </Text>
-            </TouchableOpacity>
+              <Text style={styles.subtitle}>
+                {isForgotPassword ? 'Enter your email' : isSignUp ? 'Join us today 💕' : 'Sign in to continue'}
+              </Text>
 
-            {/* Debug Panel */}
-            {showDebug && (
-              <View style={styles.debugPanel}>
-                <View style={styles.debugHeader}>
-                  <Text style={styles.debugTitle}>🐛 Debug Information</Text>
-                  <TouchableOpacity onPress={clearDebugLog}>
-                    <Text style={styles.clearButton}>Clear</Text>
-                  </TouchableOpacity>
+              <View style={styles.form}>
+                {/* Email */}
+                <View style={[styles.inputContainer, errorType === 'email' && styles.inputContainerError]}>
+                  <Ionicons name="mail-outline" size={18} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Email"
+                    placeholderTextColor={colors.textLight}
+                    value={email}
+                    onChangeText={(text) => { setEmail(text); if (errorType === 'email') { setErrorMessage(''); setErrorType(''); }}}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
                 </View>
                 
-                <ScrollView style={styles.debugLog} showsVerticalScrollIndicator={true}>
-                  {debugInfo.length === 0 ? (
-                    <Text style={styles.debugEmpty}>No debug information yet. Try logging in!</Text>
-                  ) : (
-                    debugInfo.map((log, index) => (
-                      <Text key={index} style={styles.debugLogItem}>
-                        {log}
-                      </Text>
-                    ))
-                  )}
-                </ScrollView>
+                {errorType === 'email' && (
+                  <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
+                )}
+                
+                {/* Password */}
+                {!isForgotPassword && (
+                  <>
+                    <View style={[styles.inputContainer, errorType === 'password' && styles.inputContainerError]}>
+                      <Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Password"
+                        placeholderTextColor={colors.textLight}
+                        value={password}
+                        onChangeText={(text) => { setPassword(text); if (errorType === 'password') { setErrorMessage(''); setErrorType(''); }}}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                        <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {errorType === 'password' && (
+                      <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
+                    )}
+                  </>
+                )}
 
-                <View style={styles.debugStatus}>
-                  <Text style={styles.debugStatusText}>
-                    <Text style={styles.debugLabel}>Loading:</Text> {loading ? '✅ Yes' : '❌ No'}
-                  </Text>
-                  <Text style={styles.debugStatusText}>
-                    <Text style={styles.debugLabel}>User:</Text> {user ? '✅ Logged in' : '❌ Not logged in'}
-                  </Text>
-                  <Text style={styles.debugStatusText}>
-                    <Text style={styles.debugLabel}>Session:</Text> {session ? '✅ Active' : '❌ No session'}
-                  </Text>
-                </View>
+                {errorType === 'general' && (
+                  <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
+                )}
+                
+                {/* Submit Button */}
+                <TouchableOpacity 
+                  style={[styles.primaryButton, loading && styles.buttonDisabled]}
+                  onPress={handleAuth}
+                  disabled={loading}
+                  activeOpacity={0.85}
+                >
+                  <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.buttonGradient}>
+                    <Text style={styles.primaryButtonText}>
+                      {loading ? '...' : isForgotPassword ? 'Send Link' : isSignUp ? 'Sign Up' : 'Sign In'}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                {resetSent ? (
+                  <View style={styles.resetSentContainer}>
+                    <Text style={styles.resetSentText}>✅ Reset link sent!</Text>
+                    <Text style={styles.resetSentSubtext}>Check your email</Text>
+                    <TouchableOpacity onPress={() => { setIsForgotPassword(false); setResetSent(false); }}>
+                      <Text style={styles.linkText}>← Back to login</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    <TouchableOpacity 
+                      style={styles.switchButton}
+                      onPress={() => { setIsSignUp(!isSignUp); setIsForgotPassword(false); setErrorMessage(''); setErrorType(''); }}
+                    >
+                      <Text style={styles.switchText}>
+                        {isSignUp ? 'Have an account? ' : 'New here? '}
+                        <Text style={styles.switchTextBold}>{isSignUp ? 'Sign In' : 'Sign Up'}</Text>
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    {!isSignUp && !isForgotPassword && (
+                      <TouchableOpacity style={styles.forgotButton} onPress={() => setIsForgotPassword(true)}>
+                        <Text style={styles.forgotText}>Forgot password?</Text>
+                      </TouchableOpacity>
+                    )}
+                    
+                    {isForgotPassword && (
+                      <TouchableOpacity style={styles.forgotButton} onPress={() => setIsForgotPassword(false)}>
+                        <Text style={styles.linkText}>← Back to login</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
               </View>
-            )}
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            </View>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -229,113 +349,172 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  keyboardView: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 30,
   },
   content: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  brandContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logoCircle: {
+    width: isSmallDevice ? 70 : 80,
+    height: isSmallDevice ? 70 : 80,
+    borderRadius: isSmallDevice ? 35 : 40,
+    ...shadows.glow,
+    marginBottom: 12,
+  },
+  logoGradient: {
     flex: 1,
+    borderRadius: 40,
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  logoEmoji: {
+    fontSize: isSmallDevice ? 32 : 38,
+  },
+  brandName: {
+    fontSize: isSmallDevice ? 28 : 32,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: -0.5,
+  },
+  tagline: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  formCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: isSmallDevice ? 20 : 24,
+    width: '100%',
+    maxWidth: 380,
+    ...shadows.medium,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: isSmallDevice ? 22 : 24,
+    fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 48,
+    marginBottom: 20,
   },
   form: {
-    gap: 16,
+    gap: 12,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    height: 50,
+  },
+  inputContainerError: {
+    borderColor: colors.error,
+  },
+  inputIcon: {
+    marginRight: 10,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 16,
+    flex: 1,
+    fontSize: 15,
+    color: colors.text,
+    height: '100%',
   },
-  authButton: {
-    marginTop: 8,
+  eyeButton: {
+    padding: 6,
+    marginRight: -6,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 13,
+    marginTop: -4,
+  },
+  primaryButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginTop: 6,
+    ...shadows.glow,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonGradient: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   switchButton: {
-    marginTop: 16,
-  },
-  debugToggle: {
-    backgroundColor: colors.accent,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 16,
+    paddingVertical: 10,
   },
-  debugToggleText: {
-    color: colors.surface,
-    fontWeight: 'bold',
+  switchText: {
     fontSize: 14,
-  },
-  debugPanel: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    marginTop: 16,
-    padding: 16,
-  },
-  debugHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  debugTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  clearButton: {
-    color: colors.error,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  debugLog: {
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    padding: 12,
-    maxHeight: 200,
-    marginBottom: 12,
-  },
-  debugEmpty: {
     color: colors.textSecondary,
-    fontStyle: 'italic',
-    textAlign: 'center',
   },
-  debugLogItem: {
-    fontSize: 12,
-    color: colors.text,
-    marginBottom: 4,
-    fontFamily: 'monospace',
+  switchTextBold: {
+    color: colors.primary,
+    fontWeight: '700',
   },
-  debugStatus: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
+  forgotButton: {
+    alignItems: 'center',
+    paddingVertical: 6,
   },
-  debugStatusText: {
+  forgotText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  linkText: {
     fontSize: 14,
-    color: colors.text,
-    marginBottom: 4,
+    color: colors.primary,
+    fontWeight: '600',
   },
-  debugLabel: {
-    fontWeight: 'bold',
+  resetSentContainer: {
+    backgroundColor: `${colors.success}15`,
+    borderRadius: 14,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  resetSentText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.success,
+  },
+  resetSentSubtext: {
+    fontSize: 13,
+    color: colors.text,
+    marginTop: 4,
+    marginBottom: 10,
   },
 });
-

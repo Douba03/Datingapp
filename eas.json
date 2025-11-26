@@ -16,6 +16,10 @@
     "production": {
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "npm_config_legacy_peer_deps": "true",
+        "NODE_OPTIONS": "--max-old-space-size=4096"
       }
     }
   },

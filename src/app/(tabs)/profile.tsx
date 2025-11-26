@@ -15,11 +15,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { useLocationUpdate } from '../../hooks/useLocationUpdate';
 import { useProfileStats } from '../../hooks/useProfileStats';
+import { useProfile } from '../../hooks/useProfile';
 import { supabase } from '../../services/supabase/client';
 import { Button } from '../../components/ui/Button';
 import { ProfileEditModal } from '../../components/profile/ProfileEditModal';
 import { ProfileSettings } from '../../components/profile/ProfileSettings';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
+import { PremiumBadge } from '../../components/premium/PremiumBadge';
+import { UpgradePrompt } from '../../components/premium/UpgradePrompt';
 import { colors } from '../../components/theme/colors';
 import type { Profile as ProfileType } from '../../types/user';
 
@@ -28,12 +31,16 @@ function ProfileScreen() {
   const params = useLocalSearchParams<{ viewUserId?: string; readonly?: string }>();
   const { updateLocation, loading: locationLoading } = useLocationUpdate();
   const { stats, loading: statsLoading, refreshStats } = useProfileStats();
+  const { boostProfile } = useProfile();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [otherProfile, setOtherProfile] = useState<ProfileType | null>(null);
   const [otherLoading, setOtherLoading] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [upgradeTrigger, setUpgradeTrigger] = useState<'likes' | 'boost'>('likes');
+  const [boostLoading, setBoostLoading] = useState(false);
 
   // Debug logging for profile data
   React.useEffect(() => {
@@ -59,9 +66,26 @@ function ProfileScreen() {
           text: 'Sign Out', 
           style: 'destructive', 
           onPress: async () => {
-            await signOut();
-            // Force navigate to login
-            router.replace('/(auth)/login');
+            try {
+              console.log('[Profile] User requested sign out');
+              const { error } = await signOut();
+              
+              if (error) {
+                console.error('[Profile] Sign out error:', error);
+                Alert.alert('Error', 'Failed to sign out. Please try again.');
+                return;
+              }
+              
+              console.log('[Profile] Sign out successful, navigating to login');
+              // Use setTimeout to ensure state is cleared before navigation
+              setTimeout(() => {
+                router.replace('/(auth)/login');
+              }, 100);
+            } catch (err) {
+              console.error('[Profile] Sign out exception:', err);
+              // Still try to navigate to login
+              router.replace('/(auth)/login');
+            }
           }
         },
       ]
@@ -171,6 +195,30 @@ function ProfileScreen() {
 
   const handleNotificationSettings = () => {
     Alert.alert('Notification Settings', 'Notification settings would open here');
+  };
+
+  const handleBoost = async () => {
+    if (!user?.is_premium) {
+      setUpgradeTrigger('boost');
+      setShowUpgradePrompt(true);
+      return;
+    }
+
+    setBoostLoading(true);
+    try {
+      const { error } = await boostProfile();
+      if (error) {
+        Alert.alert('Error', 'Failed to boost profile');
+      } else {
+        Alert.alert('Success', 'Your profile has been boosted for 1 hour!');
+        await refreshProfile();
+      }
+    } catch (error) {
+      console.error('[ProfileScreen] Error boosting profile:', error);
+      Alert.alert('Error', 'Failed to boost profile');
+    } finally {
+      setBoostLoading(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -351,16 +399,15 @@ function ProfileScreen() {
           />
         }
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>{isReadonly ? 'Profile' : 'My Profile'}</Text>
-          {!isReadonly && (
-            <TouchableOpacity onPress={handleEditProfile}>
-              <Text style={styles.editButton}>
-                {editing ? 'Save' : 'Edit'}
-              </Text>
+        {/* Edit button only - no header title */}
+        {!isReadonly && (
+          <View style={styles.editRow}>
+            <TouchableOpacity onPress={handleEditProfile} style={styles.editButtonContainer}>
+              <Ionicons name="create-outline" size={20} color={colors.primary} />
+              <Text style={styles.editButton}>Edit</Text>
             </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        )}
 
         <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
@@ -389,9 +436,12 @@ function ProfileScreen() {
           </View>
 
           <View style={styles.infoContainer}>
-            <Text style={styles.name}>
-              {displayProfile?.first_name}{displayProfile?.age ? `, ${displayProfile.age}` : ''}
-            </Text>
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>
+                {displayProfile?.first_name}{displayProfile?.age ? `, ${displayProfile.age}` : ''}
+              </Text>
+              {user?.is_premium && <PremiumBadge size="small" />}
+            </View>
             <Text style={styles.meta}>
               {displayProfile?.gender?.replace('_', ' ')}{displayProfile?.city ? ` • ${displayProfile.city}` : ''}{displayProfile?.country ? `, ${displayProfile.country}` : ''}
             </Text>
@@ -427,6 +477,76 @@ function ProfileScreen() {
                 <Text style={styles.statLabel}>Swipes</Text>
               </View>
             </View>
+
+            {/* People Who Liked You Button */}
+            <TouchableOpacity
+              style={[
+                styles.likesYouButton,
+                !user?.is_premium && safeStats.likes > 0 && styles.likesYouButtonHighlight
+              ]}
+              onPress={() => {
+                // Always navigate to likes-you screen (it handles premium gating internally)
+                router.push('/(tabs)/premium/likes-you');
+              }}
+            >
+              <View style={styles.likesIconContainer}>
+                <Ionicons name="heart" size={24} color={colors.primary} />
+                {/* Show notification badge for non-premium users with likes */}
+                {!user?.is_premium && safeStats.likes > 0 && (
+                  <View style={styles.likesBadge}>
+                    <Text style={styles.likesBadgeText}>
+                      {safeStats.likes > 99 ? '99+' : safeStats.likes}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.likesYouTextContainer}>
+                <Text style={styles.likesYouTitle}>
+                  People Who Liked You
+                  {safeStats.likes > 0 && (
+                    <Text style={styles.likesCount}> ({safeStats.likes})</Text>
+                  )}
+                </Text>
+                <Text style={styles.likesYouSubtitle}>
+                  {user?.is_premium 
+                    ? 'See your admirers' 
+                    : safeStats.likes > 0 
+                      ? `${safeStats.likes} ${safeStats.likes === 1 ? 'person is' : 'people are'} waiting!`
+                      : 'Unlock with Premium'
+                  }
+                </Text>
+              </View>
+              {!user?.is_premium && safeStats.likes > 0 ? (
+                <View style={styles.unlockBadge}>
+                  <Ionicons name="lock-closed" size={14} color="#fff" />
+                  <Text style={styles.unlockText}>Unlock</Text>
+                </View>
+              ) : (
+                <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
+              )}
+            </TouchableOpacity>
+
+            {/* Profile Boost Button */}
+            <TouchableOpacity
+              style={styles.boostButton}
+              onPress={handleBoost}
+              disabled={boostLoading}
+            >
+              <Ionicons name="rocket" size={24} color={user?.is_premium ? colors.success : colors.textSecondary} />
+              <View style={styles.boostTextContainer}>
+                <Text style={styles.boostTitle}>Profile Boost</Text>
+                <Text style={styles.boostSubtitle}>
+                  {user?.is_premium ? 'Get 2x more visibility' : 'Unlock with Premium'}
+                </Text>
+              </View>
+              {user?.is_premium && (
+                <Ionicons 
+                  name={boostLoading ? "hourglass" : "chevron-forward"} 
+                  size={24} 
+                  color={colors.success} 
+                />
+              )}
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -543,6 +663,17 @@ function ProfileScreen() {
         onClose={() => setShowEditModal(false)}
         onSave={handleSaveProfile}
       />
+
+      {/* Upgrade Prompt Modal */}
+      <UpgradePrompt
+        visible={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
+        onUpgrade={() => {
+          setShowUpgradePrompt(false);
+          Alert.alert('Coming Soon', 'Premium payment will be available soon!');
+        }}
+        trigger={upgradeTrigger}
+      />
     </SafeAreaView>
   );
 }
@@ -555,19 +686,22 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
   },
-  header: {
+  editRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'flex-end',
+    marginBottom: 12,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
+  editButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: `${colors.primary}15`,
+    borderRadius: 20,
   },
   editButton: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.primary,
     fontWeight: '600',
   },
@@ -616,11 +750,16 @@ const styles = StyleSheet.create({
   infoContainer: {
     alignItems: 'center',
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
   name: {
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.text,
-    marginBottom: 8,
   },
   bio: {
     fontSize: 16,
@@ -727,6 +866,102 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     fontWeight: '500',
+  },
+  likesYouButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${colors.primary}10`,
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  likesYouButtonHighlight: {
+    backgroundColor: `${colors.primary}20`,
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  likesIconContainer: {
+    position: 'relative',
+  },
+  likesBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FF4D67',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+  likesBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  likesYouTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  likesYouTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  likesCount: {
+    color: colors.primary,
+  },
+  likesYouSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  unlockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 4,
+  },
+  unlockText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  boostButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${colors.success}10`,
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  boostTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  boostTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  boostSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   signOutButton: {
     marginTop: 24,

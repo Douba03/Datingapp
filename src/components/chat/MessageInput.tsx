@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   TextInput,
@@ -79,31 +79,56 @@ export function MessageInput({
   const [emojiCategory, setEmojiCategory] = useState<string>('smileys');
   const textInputRef = useRef<TextInput>(null);
 
-  const chunk = (arr: string[], size: number) => {
+  // Memoize the chunk function to avoid recreating on every render
+  const chunk = useCallback((arr: string[], size: number) => {
     const out: string[][] = [];
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
     return out;
-  };
+  }, []);
 
-  const handleSend = () => {
+  // Memoize handlers to prevent unnecessary re-renders
+  const handleSend = useCallback(() => {
     if (message.trim() && !disabled && !loading) {
       onSend(message.trim());
       setMessage('');
       textInputRef.current?.blur();
     }
-  };
+  }, [message, disabled, loading, onSend]);
 
-  const handleEmojiPress = () => {
+  const handleEmojiPress = useCallback(() => {
     if (disabled) return;
     setShowEmojiPicker(prev => !prev);
-  };
+  }, [disabled]);
 
-  const handleAttachmentPress = () => {
+  const handleAttachmentPress = useCallback(() => {
     if (disabled || loading || attachLoading) return;
     if (onAttach) onAttach();
-  };
+  }, [disabled, loading, attachLoading, onAttach]);
 
-  const canSend = message.trim().length > 0 && !disabled && !loading;
+  // Memoize derived state
+  const canSend = useMemo(() => message.trim().length > 0 && !disabled && !loading, [message, disabled, loading]);
+
+  // Memoize emoji grid - must be outside conditional render to follow hooks rules
+  const emojiGridContent = useMemo(() => {
+    if (!showEmojiPicker) return null;
+    const emojis = emojiCategories.find(c => c.key === emojiCategory)?.emojis || [];
+    return chunk(emojis, 8).map((row, idx) => (
+      <View key={idx} style={styles.emojiRow}>
+        {row.map(e => (
+          <TouchableOpacity
+            key={e}
+            style={styles.emojiItem}
+            onPress={() => {
+              setMessage(prev => prev + e);
+              textInputRef.current?.focus();
+            }}
+          >
+            <Text style={styles.emojiText}>{e}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    ));
+  }, [showEmojiPicker, emojiCategory, chunk]);
 
   return (
     <KeyboardAvoidingView
@@ -194,22 +219,7 @@ export function MessageInput({
             ))}
           </View>
           <View style={styles.emojiGrid}>
-            {chunk(emojiCategories.find(c => c.key === emojiCategory)?.emojis || [], 8).map((row, idx) => (
-              <View key={idx} style={styles.emojiRow}>
-                {row.map(e => (
-                  <TouchableOpacity
-                    key={e}
-                    style={styles.emojiItem}
-                    onPress={() => {
-                      setMessage(prev => prev + e);
-                      textInputRef.current?.focus();
-                    }}
-                  >
-                    <Text style={styles.emojiText}>{e}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ))}
+            {emojiGridContent}
           </View>
         </View>
       )}

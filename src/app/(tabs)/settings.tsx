@@ -10,6 +10,9 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
@@ -37,6 +40,9 @@ function SettingsScreen() {
   
   // Modal states
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   // Load dark mode preference on mount
   useEffect(() => {
@@ -65,7 +71,6 @@ function SettingsScreen() {
       setDarkMode(value);
       console.log('[Settings] Dark mode:', value ? 'enabled' : 'disabled');
       
-      // Show a message that the app will fully apply on restart
       const message = value 
         ? 'Dark mode enabled! Some screens will update on next visit.'
         : 'Light mode enabled! Some screens will update on next visit.';
@@ -82,205 +87,81 @@ function SettingsScreen() {
 
   // Notification handlers
   const handlePushNotificationsToggle = async (value: boolean) => {
-    console.log('[Settings] Toggling push notifications:', value);
     const { error } = await updatePreferences({ push_enabled: value });
-    if (error) {
-      const errorMsg = `Failed to update notification settings: ${error}`;
-      if (Platform.OS === 'web') {
-        window.alert(errorMsg);
-      } else {
-        Alert.alert('Error', errorMsg);
-      }
-    } else {
-      console.log('[Settings] ✅ Push notifications updated successfully');
-    }
+    if (error) Alert.alert('Error', `Failed to update settings: ${error}`);
   };
 
   const handleMatchNotificationsToggle = async (value: boolean) => {
-    console.log('[Settings] Toggling match notifications:', value);
     const { error } = await updatePreferences({ match_notifications: value });
-    if (error) {
-      const errorMsg = `Failed to update notification settings: ${error}`;
-      if (Platform.OS === 'web') {
-        window.alert(errorMsg);
-      } else {
-        Alert.alert('Error', errorMsg);
-      }
-    } else {
-      console.log('[Settings] ✅ Match notifications updated successfully');
-    }
+    if (error) Alert.alert('Error', `Failed to update settings: ${error}`);
   };
 
   const handleMessageNotificationsToggle = async (value: boolean) => {
-    console.log('[Settings] Toggling message notifications:', value);
     const { error } = await updatePreferences({ message_notifications: value });
-    if (error) {
-      const errorMsg = `Failed to update notification settings: ${error}`;
-      if (Platform.OS === 'web') {
-        window.alert(errorMsg);
-      } else {
-        Alert.alert('Error', errorMsg);
-      }
-    } else {
-      console.log('[Settings] ✅ Message notifications updated successfully');
-    }
+    if (error) Alert.alert('Error', `Failed to update settings: ${error}`);
   };
 
   const handleLikeNotificationsToggle = async (value: boolean) => {
-    console.log('[Settings] Toggling like notifications:', value);
     const { error } = await updatePreferences({ like_notifications: value });
-    if (error) {
-      const errorMsg = `Failed to update notification settings: ${error}`;
-      if (Platform.OS === 'web') {
-        window.alert(errorMsg);
-      } else {
-        Alert.alert('Error', errorMsg);
-      }
-    } else {
-      console.log('[Settings] ✅ Like notifications updated successfully');
-    }
+    if (error) Alert.alert('Error', `Failed to update settings: ${error}`);
   };
 
   // Privacy handlers
   const handleShowOnlineToggle = async (value: boolean) => {
-    console.log('[Settings] Toggling show online status:', value);
     const { error } = await updatePrivacySettings({ show_online_status: value });
-    if (error) {
-      const errorMsg = `Failed to update privacy settings: ${error}`;
-      if (Platform.OS === 'web') {
-        window.alert(errorMsg);
-      } else {
-        Alert.alert('Error', errorMsg);
-      }
-    } else {
-      console.log('[Settings] ✅ Show online status updated successfully');
+    if (error) Alert.alert('Error', `Failed to update settings: ${error}`);
+  };
+
+  const handleSignOut = () => {
+    setShowSignOutModal(true);
+  };
+
+  const performSignOut = async () => {
+    setSigningOut(true);
+    try {
+      console.log('[Settings] User requested sign out');
+      await signOut();
+      console.log('[Settings] Sign out successful, navigating to login');
+      setShowSignOutModal(false);
+      router.replace('/(auth)/login');
+    } catch (err) {
+      console.error('[Settings] Sign out exception:', err);
+      setShowSignOutModal(false);
+      router.replace('/(auth)/login');
+    } finally {
+      setSigningOut(false);
     }
   };
 
-  const handleSignOut = async () => {
-    const confirmMessage = 'Are you sure you want to sign out?';
+  const handleDeleteAccount = () => {
+    if (!user) return;
+    setShowDeleteAccountModal(true);
+  };
+
+  const performDeleteAccount = async () => {
+    if (!user) return;
     
-    if (Platform.OS === 'web') {
-      const confirmed = window.confirm(confirmMessage);
-      if (confirmed) {
-        await signOut();
-        router.replace('/(auth)/login');
-      }
-    } else {
-      Alert.alert(
-        'Sign Out',
-        confirmMessage,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Sign Out', 
-            style: 'destructive', 
-            onPress: async () => {
-              await signOut();
-              router.replace('/(auth)/login');
-            }
-          },
-        ]
-      );
-    }
+    console.log('[Settings] Deleting account for user:', user.id);
+
+    // Delete user data
+    await supabase.from('swipes').delete().or(`swiper_user_id.eq.${user.id},target_user_id.eq.${user.id}`);
+    await supabase.from('matches').delete().or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`);
+    await supabase.from('preferences').delete().eq('user_id', user.id);
+    await supabase.from('swipe_counters').delete().eq('user_id', user.id);
+    await supabase.from('profiles').delete().eq('user_id', user.id);
+
+    await signOut();
+    setShowDeleteAccountModal(false);
+    router.replace('/(auth)/login');
   };
 
-  const handleDeleteAccount = async () => {
-    if (!user) {
-      const errorMsg = 'No user logged in';
-      if (Platform.OS === 'web') {
-        window.alert(errorMsg);
-      } else {
-        Alert.alert('Error', errorMsg);
-      }
-      return;
-    }
+  const handleChangePassword = () => setShowChangePasswordModal(true);
+  const handleChangeEmail = () => Alert.alert('Change Email', 'Coming soon!');
+  const handleBlockedUsers = () => router.push('/blocked-users');
+  const handlePrivacyPolicy = () => router.push('/privacy-policy');
+  const handleTermsOfService = () => router.push('/terms-of-service');
+  const handleHelp = () => router.push('/support-ticket');
 
-    const confirmMessage = 'This will permanently delete your account and all your data. This action cannot be undone. Continue?';
-    
-    if (Platform.OS === 'web') {
-      const confirmed = window.confirm(confirmMessage);
-      if (!confirmed) return;
-      
-      try {
-        console.log('[Settings] Deleting account for user:', user.id);
-
-        // Delete user data
-        await supabase.from('swipes').delete().or(`swiper_user_id.eq.${user.id},target_user_id.eq.${user.id}`);
-        await supabase.from('matches').delete().or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`);
-        await supabase.from('preferences').delete().eq('user_id', user.id);
-        await supabase.from('swipe_counters').delete().eq('user_id', user.id);
-        await supabase.from('profiles').delete().eq('user_id', user.id);
-
-        await signOut();
-        window.alert('Your account has been deleted.');
-        router.replace('/(auth)/login');
-      } catch (err: any) {
-        console.error('[Settings] Delete account error:', err);
-        window.alert(err?.message || 'Failed to delete account.');
-      }
-    } else {
-      Alert.alert(
-        'Delete Account',
-        confirmMessage,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                console.log('[Settings] Deleting account for user:', user.id);
-
-                await supabase.from('swipes').delete().or(`swiper_user_id.eq.${user.id},target_user_id.eq.${user.id}`);
-                await supabase.from('matches').delete().or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`);
-                await supabase.from('preferences').delete().eq('user_id', user.id);
-                await supabase.from('swipe_counters').delete().eq('user_id', user.id);
-                await supabase.from('profiles').delete().eq('user_id', user.id);
-
-                await signOut();
-                Alert.alert('Account Deleted', 'Your account has been deleted.');
-                router.replace('/(auth)/login');
-              } catch (err: any) {
-                console.error('[Settings] Delete account error:', err);
-                Alert.alert('Deletion Error', err?.message || 'Failed to delete account.');
-              }
-            },
-          },
-        ]
-      );
-    }
-  };
-
-  const handleChangePassword = () => {
-    setShowChangePasswordModal(true);
-  };
-
-  const handleChangeEmail = () => {
-    if (Platform.OS === 'web') {
-      window.alert('Email change functionality coming soon!');
-    } else {
-      Alert.alert('Change Email', 'Email change functionality coming soon!');
-    }
-  };
-
-  const handleBlockedUsers = () => {
-    router.push('/blocked-users');
-  };
-
-  const handlePrivacyPolicy = () => {
-    router.push('/privacy-policy');
-  };
-
-  const handleTermsOfService = () => {
-    router.push('/terms-of-service');
-  };
-
-  const handleHelp = () => {
-    router.push('/support-ticket');
-  };
-
-  // Create styles with current theme colors
   const styles = createStyles(colors);
 
   return (
@@ -290,9 +171,22 @@ function SettingsScreen() {
         onClose={() => setShowChangePasswordModal(false)}
       />
       
-      <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
-      </View>
+      <DeleteAccountModal
+        visible={showDeleteAccountModal}
+        onClose={() => setShowDeleteAccountModal(false)}
+        onConfirm={performDeleteAccount}
+        colors={colors}
+      />
+
+      <SignOutModal
+        visible={showSignOutModal}
+        onClose={() => setShowSignOutModal(false)}
+        onConfirm={performSignOut}
+        loading={signingOut}
+        colors={colors}
+      />
+      
+      {/* No header - clean look */}
 
       <ScrollView style={styles.content}>
         {/* Account Section */}
@@ -501,7 +395,11 @@ function SettingsScreen() {
             <Text style={[styles.sectionTitle, { color: colors.error }]}>Danger Zone</Text>
           </View>
 
-          <TouchableOpacity style={styles.dangerButton} onPress={handleSignOut}>
+          <TouchableOpacity 
+            style={styles.dangerButton} 
+            onPress={handleSignOut}
+            activeOpacity={0.6}
+          >
             <Ionicons name="log-out" size={20} color={colors.error} />
             <Text style={styles.dangerButtonText}>Sign Out</Text>
           </TouchableOpacity>
@@ -518,22 +416,189 @@ function SettingsScreen() {
   );
 }
 
+interface SignOutModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+  loading: boolean;
+  colors: any;
+}
+
+function SignOutModal({ visible, onClose, onConfirm, loading, colors }: SignOutModalProps) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+          <View style={styles.modalHeader}>
+            <View style={[styles.modalIconContainer, { backgroundColor: `${colors.primary}15` }]}>
+              <Ionicons name="log-out" size={32} color={colors.primary} />
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Sign Out?</Text>
+          </View>
+
+          <View style={styles.modalContent}>
+            <Text style={[styles.warningText, { color: colors.textSecondary }]}>
+              Are you sure you want to sign out? You'll need to sign in again to access your account.
+            </Text>
+          </View>
+
+          <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+            <TouchableOpacity
+              style={[styles.cancelButton, { backgroundColor: colors.background }]}
+              onPress={onClose}
+              disabled={loading}
+            >
+              <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.signOutButton, loading && styles.deleteButtonDisabled]}
+              onPress={onConfirm}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.signOutButtonText}>Sign Out</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+interface DeleteAccountModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+  colors: any;
+}
+
+function DeleteAccountModal({ visible, onClose, onConfirm, colors }: DeleteAccountModalProps) {
+  const [confirmWord, setConfirmWord] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [targetWord, setTargetWord] = useState('');
+
+  const randomWords = ['DELETE', 'BYE', 'ERASE', 'GONE', 'EXIT'];
+
+  useEffect(() => {
+    if (visible) {
+      const random = randomWords[Math.floor(Math.random() * randomWords.length)];
+      setTargetWord(random);
+      setConfirmWord('');
+      setError(null);
+    }
+  }, [visible]);
+
+  const handleConfirm = async () => {
+    if (confirmWord.toUpperCase() !== targetWord) {
+      setError(`Please type "${targetWord}" correctly.`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onConfirm();
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete account');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
+          <View style={styles.modalHeader}>
+            <View style={[styles.modalIconContainer, { backgroundColor: '#FEF2F2' }]}>
+              <Ionicons name="warning" size={32} color={colors.error} />
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Delete Account?</Text>
+          </View>
+
+          <View style={styles.modalContent}>
+            <Text style={[styles.warningText, { color: colors.text }]}>
+              We're sorry to see you go. This action will <Text style={{ fontWeight: 'bold', color: colors.error }}>permanently delete</Text> your account, matches, messages, and all data.
+            </Text>
+            
+            <Text style={[styles.regretText, { color: colors.textSecondary }]}>
+              Are you absolutely sure you want to lose all your connections forever? This action cannot be undone.
+            </Text>
+
+            <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>
+                Type <Text style={{ fontWeight: 'bold', color: colors.primary, letterSpacing: 1 }}>{targetWord}</Text> to confirm:
+              </Text>
+              <TextInput
+                style={[styles.input, { 
+                  backgroundColor: colors.background, 
+                  borderColor: colors.border,
+                  color: colors.text 
+                }]}
+                value={confirmWord}
+                onChangeText={(text) => {
+                  setConfirmWord(text);
+                  setError(null);
+                }}
+                placeholder={targetWord}
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="characters"
+              />
+              {error && <Text style={styles.errorText}>{error}</Text>}
+            </View>
+          </View>
+
+          <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+            <TouchableOpacity
+              style={[styles.cancelButton, { backgroundColor: colors.background }]}
+              onPress={onClose}
+              disabled={loading}
+            >
+              <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.deleteButton,
+                (confirmWord.toUpperCase() !== targetWord || loading) && styles.deleteButtonDisabled
+              ]}
+              onPress={handleConfirm}
+              disabled={confirmWord.toUpperCase() !== targetWord || loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.deleteButtonText}>Delete Forever</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // Create styles function that takes colors as parameter
 const createStyles = (colors: typeof lightTheme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
   },
   content: {
     flex: 1,
@@ -604,6 +669,124 @@ const createStyles = (colors: typeof lightTheme) => StyleSheet.create({
   },
 });
 
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 400,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    paddingTop: 24,
+    paddingHorizontal: 20,
+  },
+  modalIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    padding: 20,
+  },
+  warningText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 12,
+    lineHeight: 22,
+  },
+  regretText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+    fontStyle: 'italic',
+  },
+  inputContainer: {
+    width: '100%',
+  },
+  inputLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+  },
+  deleteButtonDisabled: {
+    opacity: 0.5,
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  signOutButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: lightColors.primary,
+    alignItems: 'center',
+  },
+  signOutButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+});
+
 export default function SettingsScreenWrapper() {
   return (
     <ProtectedRoute>
@@ -611,4 +794,3 @@ export default function SettingsScreenWrapper() {
     </ProtectedRoute>
   );
 }
-

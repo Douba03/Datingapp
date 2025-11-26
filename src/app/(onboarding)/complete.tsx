@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Alert,
+  Platform,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,9 +25,80 @@ export default function CompleteScreen() {
   const { data: onboardingData, resetData } = useOnboarding();
   const { createProfile } = useProfile();
   const [saving, setSaving] = useState(false);
+  
+  // Animation values
+  const flyAnimation = useRef(new Animated.Value(0)).current;
+  const shakeAnimation = useRef(new Animated.Value(0)).current;
+  const launchX = useRef(new Animated.Value(0)).current;
+  const launchY = useRef(new Animated.Value(0)).current;
+  const scaleAnimation = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Flying animation (up and down)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(flyAnimation, {
+          toValue: -20,
+          duration: 1500,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(flyAnimation, {
+          toValue: 0,
+          duration: 1500,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Shake animation (backfire/rumble effect)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shakeAnimation, {
+          toValue: 2,
+          duration: 50,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeAnimation, {
+          toValue: -2,
+          duration: 50,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeAnimation, {
+          toValue: 0,
+          duration: 50,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const triggerLaunchAnimation = () => {
+    Animated.parallel([
+      Animated.timing(launchX, {
+        toValue: 500, // Fly right
+        duration: 1000,
+        easing: Easing.in(Easing.exp),
+        useNativeDriver: true,
+      }),
+      Animated.timing(launchY, {
+        toValue: -1000, // Fly up
+        duration: 1000,
+        easing: Easing.in(Easing.exp),
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnimation, {
+        toValue: 0.5, // Get smaller as it flies away
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   const handleComplete = async () => {
-    console.log('🚀 Let\'s Go button pressed!');
+    console.log('🚀 Let\'s Go button pressed! (test)');
+    triggerLaunchAnimation();
     setSaving(true);
     
     console.log('📋 Onboarding data:', onboardingData);
@@ -131,21 +205,6 @@ export default function CompleteScreen() {
       }
 
       const data = { profile: profileResult, preferences: prefsResult, success: true };
-      const apiError = null;
-
-      if (apiError) {
-        console.error('❌ Profile creation/update error:', apiError);
-        console.error('❌ Error details:', {
-          code: apiError.code || apiError.error_code,
-          message: apiError.message || apiError.error,
-          details: apiError.details,
-          hint: apiError.hint
-        });
-        clearTimeout(timeout);
-        setSaving(false);
-        Alert.alert('Error', `Failed to save profile: ${apiError.message || apiError.error}`);
-        return;
-      }
 
       if (!data || !data.success) {
         console.error('❌ No data returned from profile operation or operation failed');
@@ -168,14 +227,14 @@ export default function CompleteScreen() {
       console.log('🔄 Refreshing profile data...');
       await refreshProfile();
       
-      console.log('🎉 Navigating to main app...');
-      router.replace('/(tabs)');
-    } catch (error) {
+      console.log('🎉 Navigating to package selection...');
+      router.push('/(onboarding)/package-selection');
+    } catch (error: any) {
       console.error('❌ Error completing onboarding:', error);
       clearTimeout(timeout);
       Alert.alert(
         'Error', 
-        `Failed to complete onboarding: ${error.message}`,
+        `Failed to complete onboarding: ${error.message || 'Unknown error'}`,
         [
           { text: 'Try Again', onPress: () => setSaving(false) },
           { text: 'Skip', onPress: () => router.replace('/(tabs)') }
@@ -199,13 +258,20 @@ export default function CompleteScreen() {
       <View style={styles.content}>
         {/* Success Icon with Animation */}
         <View style={styles.iconContainer}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="checkmark" size={80} color="#fff" />
-          </View>
-          <View style={styles.celebrationEmojis}>
-            <Text style={styles.emoji}>🎉</Text>
-            <Text style={styles.emoji}>✨</Text>
-            <Text style={styles.emoji}>🎊</Text>
+          <View style={styles.gradientCircle}>
+            <View style={styles.innerCircle}>
+              <Animated.View
+                style={{
+                  transform: [
+                    { translateY: Animated.add(flyAnimation, launchY) },
+                    { translateX: Animated.add(shakeAnimation, launchX) },
+                    { scale: scaleAnimation }
+                  ],
+                }}
+              >
+                <Ionicons name="rocket" size={60} color="#fff" />
+              </Animated.View>
+            </View>
           </View>
         </View>
 
@@ -248,7 +314,7 @@ export default function CompleteScreen() {
       {/* Start Button */}
       <View style={styles.footer}>
         <Button
-          title={saving ? 'Setting up your profile...' : "Let's Go! 🚀"}
+          title={saving ? 'Setting up your profile...' : "Let's Go!"}
           onPress={handleComplete}
           disabled={saving}
           style={styles.startButton}
@@ -295,62 +361,92 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     justifyContent: 'center',
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
   },
   iconContainer: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 40,
     position: 'relative',
   },
-  iconCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+  gradientCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     backgroundColor: colors.success,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: colors.success,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
     elevation: 8,
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  innerCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mainEmoji: {
+    fontSize: 60,
+    textAlign: 'center',
   },
   celebrationEmojis: {
     position: 'absolute',
-    width: '100%',
-    height: '100%',
+    width: 200,
+    height: 200,
     justifyContent: 'center',
     alignItems: 'center',
   },
   emoji: {
     position: 'absolute',
-    fontSize: 32,
+    fontSize: 28,
+    opacity: 0.8,
+  },
+  emoji1: {
+    top: 20,
+    left: 10,
+  },
+  emoji2: {
+    top: 10,
+    right: 10,
+  },
+  emoji3: {
+    bottom: 20,
+    alignSelf: 'center',
   },
   titleSection: {
-    marginBottom: 48,
+    marginBottom: 32,
     alignItems: 'center',
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.textSecondary,
     lineHeight: 22,
     textAlign: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   summarySection: {
     backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 20,
-    gap: 16,
-    marginBottom: 32,
+    padding: 16,
+    gap: 12,
+    marginBottom: 24,
   },
   summaryItem: {
     flexDirection: 'row',
@@ -374,7 +470,7 @@ const styles = StyleSheet.create({
   nextStepsSection: {
     backgroundColor: `${colors.primary}10`,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
   },
   nextStepsTitle: {
     fontSize: 18,
@@ -410,13 +506,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   footer: {
-    paddingHorizontal: 24,
-    paddingBottom: 32,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 24,
+    paddingTop: 8,
   },
   startButton: {
-    paddingVertical: 18,
+    paddingVertical: 16,
   },
   loader: {
-    marginTop: 16,
+    marginTop: 12,
   },
 });

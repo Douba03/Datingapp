@@ -105,6 +105,8 @@ export interface SwipeCounter {
   remaining: number;
   last_exhausted_at?: string;
   next_refill_at?: string;
+  last_reset_at?: string;
+  is_unlimited?: boolean;
   created_at: string;
   updated_at: string;
 }

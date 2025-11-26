@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,13 @@ import {
   Dimensions,
   TouchableOpacity,
   Animated,
+  Platform,
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Profile } from '../../types/user';
-import { colors } from '../theme/colors';
+import { colors, shadows } from '../theme/colors';
 import { calculateDistance, formatDistance } from '../../utils/location';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -22,25 +25,72 @@ interface SwipeCardProps {
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
+// Responsive sizing
+const isSmallDevice = screenWidth < 375;
+const cardWidth = Math.min(screenWidth * 0.92, 400);
+const cardHeight = Math.min(screenHeight * 0.65, 550);
+
 export function SwipeCard({ profile, onSwipe, onPress }: SwipeCardProps) {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const { profile: currentUserProfile } = useAuth();
-  const translateX = new Animated.Value(0);
-  const translateY = new Animated.Value(0);
+  
+  // Animated values
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const cardScale = useRef(new Animated.Value(1)).current;
+  const likeOpacity = useRef(new Animated.Value(0)).current;
+  const passOpacity = useRef(new Animated.Value(0)).current;
+  const superlikeOpacity = useRef(new Animated.Value(0)).current;
+  
   const rotate = translateX.interpolate({
     inputRange: [-screenWidth / 2, 0, screenWidth / 2],
     outputRange: ['-10deg', '0deg', '10deg'],
   });
 
-  // Calculate distance if both users have location data
+  // Swipe indicator animations
+  useEffect(() => {
+    const likeListener = translateX.addListener(({ value }) => {
+      if (value > 0) {
+        likeOpacity.setValue(Math.min(value / 80, 1));
+        passOpacity.setValue(0);
+      } else {
+        passOpacity.setValue(Math.min(Math.abs(value) / 80, 1));
+        likeOpacity.setValue(0);
+      }
+    });
+
+    const superlikeListener = translateY.addListener(({ value }) => {
+      if (value < -15) {
+        superlikeOpacity.setValue(Math.min(Math.abs(value) / 60, 1));
+      } else {
+        superlikeOpacity.setValue(0);
+      }
+    });
+
+    return () => {
+      translateX.removeListener(likeListener);
+      translateY.removeListener(superlikeListener);
+    };
+  }, []);
+
+  // Reset position when profile changes
+  useEffect(() => {
+    translateX.setValue(0);
+    translateY.setValue(0);
+    cardScale.setValue(1);
+    likeOpacity.setValue(0);
+    passOpacity.setValue(0);
+    superlikeOpacity.setValue(0);
+    setCurrentPhotoIndex(0);
+  }, [profile.user_id]);
+
+  // Calculate distance
   const getDistanceText = () => {
     if (!currentUserProfile?.location || !profile.location) {
-      return profile.city ? `📍 ${profile.city}` : '📍 Location unknown';
+      return profile.city || 'Nearby';
     }
-    
     const distance = calculateDistance(currentUserProfile.location, profile.location);
-    const cityText = profile.city ? ` • ${profile.city}` : '';
-    return `📍 ${formatDistance(distance)}${cityText}`;
+    return `${formatDistance(distance)}${profile.city ? ` · ${profile.city}` : ''}`;
   };
 
   const handleGestureEvent = Animated.event(
@@ -49,22 +99,60 @@ export function SwipeCard({ profile, onSwipe, onPress }: SwipeCardProps) {
   );
 
   const handleGestureEnd = (event: any) => {
-    const { translationX, translationY, velocityX } = event.nativeEvent;
+    const { translationX: tX, translationY: tY, velocityX, velocityY } = event.nativeEvent;
     
-    if (Math.abs(translationX) > screenWidth * 0.3 || Math.abs(velocityX) > 500) {
-      const direction = translationX > 0 ? 'like' : 'pass';
-      onSwipe(direction);
-    } else {
-      // Snap back to center
-      Animated.spring(translateX, {
-        toValue: 0,
-        useNativeDriver: true,
-      }).start();
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-      }).start();
+    const isVertical = Math.abs(tY) > Math.abs(tX);
+    const threshold = screenWidth * 0.25;
+    const velocityThreshold = 350;
+
+    if (isVertical && tY < -50) {
+      if (Math.abs(tY) > threshold || Math.abs(velocityY) > velocityThreshold) {
+        Animated.parallel([
+          Animated.timing(translateY, {
+            toValue: -screenHeight,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          Animated.timing(cardScale, {
+            toValue: 0.85,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+        ]).start(() => onSwipe('superlike'));
+        return;
+      }
+    } else if (!isVertical) {
+      if (Math.abs(tX) > threshold || Math.abs(velocityX) > velocityThreshold) {
+        const direction = tX > 0 ? 'like' : 'pass';
+        const targetX = tX > 0 ? screenWidth * 1.5 : -screenWidth * 1.5;
+
+        Animated.parallel([
+          Animated.timing(translateX, {
+            toValue: targetX,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateY, {
+            toValue: tY + 20,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          Animated.timing(cardScale, {
+            toValue: 0.9,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+        ]).start(() => onSwipe(direction));
+        return;
+      }
     }
+
+    // Snap back
+    Animated.parallel([
+      Animated.spring(translateX, { toValue: 0, friction: 6, tension: 100, useNativeDriver: true }),
+      Animated.spring(translateY, { toValue: 0, friction: 6, tension: 100, useNativeDriver: true }),
+      Animated.spring(cardScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: true }),
+    ]).start();
   };
 
   const nextPhoto = () => {
@@ -88,20 +176,44 @@ export function SwipeCard({ profile, onSwipe, onPress }: SwipeCardProps) {
         style={[
           styles.card,
           {
+            width: cardWidth,
+            height: cardHeight,
             transform: [
               { translateX },
               { translateY },
               { rotate },
+              { scale: cardScale },
             ],
           },
         ]}
       >
-        <TouchableOpacity onPress={onPress} style={styles.cardContent}>
+        {/* LIKE Badge */}
+        <Animated.View style={[styles.swipeBadge, styles.likeBadge, { opacity: likeOpacity }]}>
+          <Text style={styles.likeBadgeText}>LIKE 💖</Text>
+        </Animated.View>
+
+        {/* PASS Badge */}
+        <Animated.View style={[styles.swipeBadge, styles.passBadge, { opacity: passOpacity }]}>
+          <Text style={styles.passBadgeText}>NOPE 👋</Text>
+        </Animated.View>
+
+        {/* SUPERLIKE Badge */}
+        <Animated.View style={[styles.swipeBadge, styles.superlikeBadge, { opacity: superlikeOpacity }]}>
+          <Text style={styles.superlikeBadgeText}>SUPER ⭐</Text>
+        </Animated.View>
+
+        <TouchableOpacity onPress={onPress} style={styles.cardContent} activeOpacity={0.98}>
           <View style={styles.imageContainer}>
             <Image
               source={{ uri: profile.photos[currentPhotoIndex] }}
               style={styles.image}
               resizeMode="cover"
+            />
+            
+            {/* Gradient overlay */}
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.5)']}
+              style={styles.imageGradient}
             />
             
             {/* Photo indicators */}
@@ -119,56 +231,63 @@ export function SwipeCard({ profile, onSwipe, onPress }: SwipeCardProps) {
               </View>
             )}
 
-            {/* Photo navigation */}
+            {/* Photo navigation - visible buttons */}
             {profile.photos.length > 1 && (
               <>
-                <TouchableOpacity
-                  style={[styles.navButton, styles.prevButton]}
-                  onPress={prevPhoto}
-                >
-                  <Text style={styles.navButtonText}>‹</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.navButton, styles.nextButton]}
-                  onPress={nextPhoto}
-                >
-                  <Text style={styles.navButtonText}>›</Text>
-                </TouchableOpacity>
+                {currentPhotoIndex > 0 && (
+                  <TouchableOpacity style={[styles.navButton, styles.prevButton]} onPress={prevPhoto} activeOpacity={0.7}>
+                    <View style={styles.navButtonInner}>
+                      <Ionicons name="chevron-back" size={24} color="#fff" />
+                    </View>
+                  </TouchableOpacity>
+                )}
+                {currentPhotoIndex < profile.photos.length - 1 && (
+                  <TouchableOpacity style={[styles.navButton, styles.nextButton]} onPress={nextPhoto} activeOpacity={0.7}>
+                    <View style={styles.navButtonInner}>
+                      <Ionicons name="chevron-forward" size={24} color="#fff" />
+                    </View>
+                  </TouchableOpacity>
+                )}
               </>
             )}
+
+            {/* Info on image */}
+            <View style={styles.imageInfo}>
+              <View style={styles.nameAgeRow}>
+                <Text style={styles.name} numberOfLines={1}>{profile.first_name}</Text>
+                <Text style={styles.age}>{profile.age}</Text>
+                {profile.is_verified && (
+                  <Ionicons name="checkmark-circle" size={20} color="#4ECDC4" />
+                )}
+              </View>
+              
+              <View style={styles.locationRow}>
+                <Ionicons name="location" size={13} color="rgba(255,255,255,0.9)" />
+                <Text style={styles.locationText} numberOfLines={1}>{getDistanceText()}</Text>
+              </View>
+            </View>
           </View>
 
+          {/* Bottom info */}
           <View style={styles.infoContainer}>
-            <View style={styles.nameAgeContainer}>
-              <Text style={styles.name}>{profile.first_name}</Text>
-              <Text style={styles.age}>{profile.age}</Text>
-            </View>
-            
-            {profile.bio && (
-              <Text style={styles.bio} numberOfLines={2}>
-                {profile.bio}
-              </Text>
-            )}
+            {profile.bio ? (
+              <Text style={styles.bio} numberOfLines={2}>{profile.bio}</Text>
+            ) : null}
 
-            {/* Interests Tags */}
             {profile.interests && profile.interests.length > 0 && (
               <View style={styles.interestsContainer}>
-                {profile.interests.slice(0, 4).map((interest, index) => (
+                {profile.interests.slice(0, 3).map((interest, index) => (
                   <View key={index} style={styles.interestTag}>
-                    <Text style={styles.interestText}>{interest}</Text>
+                    <Text style={styles.interestText} numberOfLines={1}>{interest}</Text>
                   </View>
                 ))}
-                {profile.interests.length > 4 && (
-                  <View style={styles.interestTag}>
-                    <Text style={styles.interestText}>+{profile.interests.length - 4}</Text>
+                {profile.interests.length > 3 && (
+                  <View style={styles.moreTag}>
+                    <Text style={styles.moreTagText}>+{profile.interests.length - 3}</Text>
                   </View>
                 )}
               </View>
             )}
-
-            <Text style={styles.location}>
-              {getDistanceText()}
-            </Text>
           </View>
         </TouchableOpacity>
       </Animated.View>
@@ -178,114 +297,196 @@ export function SwipeCard({ profile, onSwipe, onPress }: SwipeCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    width: screenWidth * 0.9,
-    height: screenHeight * 0.7,
     backgroundColor: colors.surface,
     borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    ...shadows.large,
+    overflow: 'hidden',
   },
   cardContent: {
     flex: 1,
   },
   imageContainer: {
-    flex: 0.7,
+    flex: 0.75,
     position: 'relative',
+    backgroundColor: colors.border,
   },
   image: {
     width: '100%',
     height: '100%',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  },
+  imageGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '40%',
   },
   photoIndicators: {
     position: 'absolute',
-    top: 20,
-    left: 0,
-    right: 0,
+    top: 10,
+    left: 12,
+    right: 12,
     flexDirection: 'row',
-    justifyContent: 'center',
     gap: 4,
   },
   indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    flex: 1,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    maxWidth: 50,
   },
   activeIndicator: {
     backgroundColor: '#fff',
   },
   navButton: {
     position: 'absolute',
-    top: '50%',
+    top: '35%',
+    height: 50,
+    width: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  navButtonInner: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   prevButton: {
-    left: 10,
+    left: 8,
   },
   nextButton: {
-    right: 10,
+    right: 8,
   },
-  navButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
+  imageInfo: {
+    position: 'absolute',
+    bottom: 12,
+    left: 14,
+    right: 14,
   },
-  infoContainer: {
-    flex: 0.3,
-    padding: 20,
-  },
-  nameAgeContainer: {
+  nameAgeRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 8,
+    alignItems: 'center',
+    gap: 8,
   },
   name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginRight: 8,
+    fontSize: isSmallDevice ? 24 : 28,
+    fontWeight: '700',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    maxWidth: '60%',
   },
   age: {
-    fontSize: 20,
-    color: colors.textSecondary,
+    fontSize: isSmallDevice ? 22 : 24,
+    color: 'rgba(255,255,255,0.95)',
+    fontWeight: '400',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  locationText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '500',
+    flex: 1,
+  },
+  infoContainer: {
+    flex: 0.25,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    justifyContent: 'center',
   },
   bio: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: 8,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+    marginBottom: 10,
   },
   interestsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginBottom: 8,
   },
   interestTag: {
-    backgroundColor: `${colors.primary}20`,
+    backgroundColor: `${colors.primary}15`,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    maxWidth: 100,
+  },
+  moreTag: {
+    backgroundColor: colors.surfaceElevated,
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: `${colors.primary}40`,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
   interestText: {
     fontSize: 12,
     color: colors.primary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  location: {
-    fontSize: 14,
+  moreTagText: {
+    fontSize: 12,
     color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  // Swipe badges - compact for mobile
+  swipeBadge: {
+    position: 'absolute',
+    top: 50,
+    zIndex: 1000,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 2,
+  },
+  likeBadge: {
+    left: 16,
+    backgroundColor: 'rgba(255, 107, 138, 0.2)',
+    borderColor: colors.like,
+    transform: [{ rotate: '-12deg' }],
+  },
+  passBadge: {
+    right: 16,
+    backgroundColor: 'rgba(168, 163, 179, 0.2)',
+    borderColor: colors.pass,
+    transform: [{ rotate: '12deg' }],
+  },
+  superlikeBadge: {
+    alignSelf: 'center',
+    left: '50%',
+    marginLeft: -50,
+    backgroundColor: 'rgba(155, 93, 229, 0.2)',
+    borderColor: colors.superlike,
+  },
+  likeBadgeText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.like,
+    letterSpacing: 1,
+  },
+  passBadgeText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.pass,
+    letterSpacing: 1,
+  },
+  superlikeBadgeText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.superlike,
+    letterSpacing: 1,
   },
 });

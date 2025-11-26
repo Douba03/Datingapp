@@ -165,7 +165,10 @@ export default function PhotosScreen() {
 
           {/* Tips */}
           <View style={styles.tipsSection}>
-            <Text style={styles.tipsTitle}>📸 Photo Tips</Text>
+            <View style={styles.tipsHeader}>
+              <Ionicons name="bulb-outline" size={20} color={colors.primary} />
+              <Text style={styles.tipsTitle}>Photo Tips</Text>
+            </View>
             <View style={styles.tipsList}>
               <TipItem text="Use recent photos that show your face clearly" />
               <TipItem text="Include photos of your hobbies and interests" />
@@ -336,15 +339,23 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   tipsSection: {
-    backgroundColor: `${colors.primary}10`,
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tipsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
   },
   tipsTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
   },
   tipsList: {
     gap: 8,
