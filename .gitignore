@@ -8,6 +8,7 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+.expomkdir/
 
 # Native
 .kotlin/
@@ -50,6 +51,7 @@ netlify-deploy/
 .vscode/
 *.swp
 *.swo
+.cursor/
 
 # Logs
 *.log
@@ -62,3 +64,15 @@ coverage/
 *.tmp
 *.temp
 .cache/
+
+# Test and debug scripts
+test-*.js
+debug-*.js
+create-*.js
+check-*.js
+delete-*.js
+verify-*.js
+
+# Build scripts
+build-*.bat
+*.bat
