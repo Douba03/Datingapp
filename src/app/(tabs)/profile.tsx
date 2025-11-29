@@ -23,7 +23,9 @@ import { ProfileSettings } from '../../components/profile/ProfileSettings';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 import { PremiumBadge } from '../../components/premium/PremiumBadge';
 import { UpgradePrompt } from '../../components/premium/UpgradePrompt';
+import { SignOutModal } from '../../components/settings/SignOutModal';
 import { colors } from '../../components/theme/colors';
+import { lightTheme } from '../../components/theme/themes';
 import type { Profile as ProfileType } from '../../types/user';
 
 function ProfileScreen() {
@@ -41,6 +43,8 @@ function ProfileScreen() {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [upgradeTrigger, setUpgradeTrigger] = useState<'likes' | 'boost'>('likes');
   const [boostLoading, setBoostLoading] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   // Debug logging for profile data
   React.useEffect(() => {
@@ -56,40 +60,23 @@ function ProfileScreen() {
     }
   }, [profile]);
 
-  const handleSignOut = async () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
-          style: 'destructive', 
-          onPress: async () => {
-            try {
-              console.log('[Profile] User requested sign out');
-              const { error } = await signOut();
-              
-              if (error) {
-                console.error('[Profile] Sign out error:', error);
-                Alert.alert('Error', 'Failed to sign out. Please try again.');
-                return;
-              }
-              
-              console.log('[Profile] Sign out successful, navigating to login');
-              // Use setTimeout to ensure state is cleared before navigation
-              setTimeout(() => {
-                router.replace('/(auth)/login');
-              }, 100);
-            } catch (err) {
-              console.error('[Profile] Sign out exception:', err);
-              // Still try to navigate to login
-              router.replace('/(auth)/login');
-            }
-          }
-        },
-      ]
-    );
+  const handleSignOut = () => {
+    setShowSignOutModal(true);
+  };
+
+  const performSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+      setShowSignOutModal(false);
+      router.replace('/(auth)/login');
+    } catch (err) {
+      console.error('[Profile] Sign out error:', err);
+      setShowSignOutModal(false);
+      router.replace('/(auth)/login');
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   const handleEditProfile = () => {
@@ -389,6 +376,14 @@ function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <SignOutModal
+        visible={showSignOutModal}
+        onClose={() => setShowSignOutModal(false)}
+        onConfirm={performSignOut}
+        loading={signingOut}
+        colors={lightTheme}
+      />
+      
       <ScrollView 
         contentContainerStyle={styles.content}
         refreshControl={
@@ -399,15 +394,7 @@ function ProfileScreen() {
           />
         }
       >
-        {/* Edit button only - no header title */}
-        {!isReadonly && (
-          <View style={styles.editRow}>
-            <TouchableOpacity onPress={handleEditProfile} style={styles.editButtonContainer}>
-              <Ionicons name="create-outline" size={20} color={colors.primary} />
-              <Text style={styles.editButton}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* No header - clean look */}
 
         <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
@@ -480,50 +467,29 @@ function ProfileScreen() {
 
             {/* People Who Liked You Button */}
             <TouchableOpacity
-              style={[
-                styles.likesYouButton,
-                !user?.is_premium && safeStats.likes > 0 && styles.likesYouButtonHighlight
-              ]}
+              style={styles.likesYouButton}
               onPress={() => {
-                // Always navigate to likes-you screen (it handles premium gating internally)
-                router.push('/(tabs)/premium/likes-you');
+                if (user?.is_premium) {
+                  router.push('/(tabs)/premium/likes-you');
+                } else {
+                  setUpgradeTrigger('likes');
+                  setShowUpgradePrompt(true);
+                }
               }}
             >
-              <View style={styles.likesIconContainer}>
-                <Ionicons name="heart" size={24} color={colors.primary} />
-                {/* Show notification badge for non-premium users with likes */}
-                {!user?.is_premium && safeStats.likes > 0 && (
-                  <View style={styles.likesBadge}>
-                    <Text style={styles.likesBadgeText}>
-                      {safeStats.likes > 99 ? '99+' : safeStats.likes}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              <Ionicons name="heart" size={24} color={colors.primary} />
               <View style={styles.likesYouTextContainer}>
                 <Text style={styles.likesYouTitle}>
                   People Who Liked You
-                  {safeStats.likes > 0 && (
+                  {user?.is_premium && safeStats.likes > 0 && (
                     <Text style={styles.likesCount}> ({safeStats.likes})</Text>
                   )}
                 </Text>
                 <Text style={styles.likesYouSubtitle}>
-                  {user?.is_premium 
-                    ? 'See your admirers' 
-                    : safeStats.likes > 0 
-                      ? `${safeStats.likes} ${safeStats.likes === 1 ? 'person is' : 'people are'} waiting!`
-                      : 'Unlock with Premium'
-                  }
+                  {user?.is_premium ? 'See your admirers' : 'Unlock with Premium'}
                 </Text>
               </View>
-              {!user?.is_premium && safeStats.likes > 0 ? (
-                <View style={styles.unlockBadge}>
-                  <Ionicons name="lock-closed" size={14} color="#fff" />
-                  <Text style={styles.unlockText}>Unlock</Text>
-                </View>
-              ) : (
-                <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-              )}
+              <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
 
             {/* Profile Boost Button */}
@@ -686,22 +652,19 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
   },
-  editRow: {
+  header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 12,
-  },
-  editButtonContainer: {
-    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: `${colors.primary}15`,
-    borderRadius: 20,
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.text,
   },
   editButton: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.primary,
     fontWeight: '600',
   },
@@ -877,37 +840,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.primary,
   },
-  likesYouButtonHighlight: {
-    backgroundColor: `${colors.primary}20`,
-    borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  likesIconContainer: {
-    position: 'relative',
-  },
-  likesBadge: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: '#FF4D67',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: colors.surface,
-  },
-  likesBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
   likesYouTextContainer: {
     flex: 1,
     marginLeft: 12,
@@ -924,20 +856,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     marginTop: 2,
-  },
-  unlockBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 4,
-  },
-  unlockText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
   },
   boostButton: {
     flexDirection: 'row',

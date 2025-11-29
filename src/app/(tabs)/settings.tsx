@@ -23,6 +23,7 @@ import { usePrivacySettings } from '../../hooks/usePrivacySettings';
 import { supabase } from '../../services/supabase/client';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 import { ChangePasswordModal } from '../../components/settings/ChangePasswordModal';
+import { SignOutModal } from '../../components/settings/SignOutModal';
 import { colors as lightColors } from '../../components/theme/colors';
 import { lightTheme, darkTheme } from '../../components/theme/themes';
 
@@ -88,28 +89,38 @@ function SettingsScreen() {
   // Notification handlers
   const handlePushNotificationsToggle = async (value: boolean) => {
     const { error } = await updatePreferences({ push_enabled: value });
-    if (error) Alert.alert('Error', `Failed to update settings: ${error}`);
+    if (error) {
+      Alert.alert('Error', `Failed to update notification settings: ${error}`);
+    }
   };
 
   const handleMatchNotificationsToggle = async (value: boolean) => {
     const { error } = await updatePreferences({ match_notifications: value });
-    if (error) Alert.alert('Error', `Failed to update settings: ${error}`);
+    if (error) {
+      Alert.alert('Error', `Failed to update notification settings: ${error}`);
+    }
   };
 
   const handleMessageNotificationsToggle = async (value: boolean) => {
     const { error } = await updatePreferences({ message_notifications: value });
-    if (error) Alert.alert('Error', `Failed to update settings: ${error}`);
+    if (error) {
+      Alert.alert('Error', `Failed to update notification settings: ${error}`);
+    }
   };
 
   const handleLikeNotificationsToggle = async (value: boolean) => {
     const { error } = await updatePreferences({ like_notifications: value });
-    if (error) Alert.alert('Error', `Failed to update settings: ${error}`);
+    if (error) {
+      Alert.alert('Error', `Failed to update notification settings: ${error}`);
+    }
   };
 
   // Privacy handlers
   const handleShowOnlineToggle = async (value: boolean) => {
     const { error } = await updatePrivacySettings({ show_online_status: value });
-    if (error) Alert.alert('Error', `Failed to update settings: ${error}`);
+    if (error) {
+      Alert.alert('Error', `Failed to update privacy settings: ${error}`);
+    }
   };
 
   const handleSignOut = () => {
@@ -121,7 +132,7 @@ function SettingsScreen() {
     try {
       console.log('[Settings] User requested sign out');
       await signOut();
-      console.log('[Settings] Sign out successful, navigating to login');
+      console.log('[Settings] Sign out successful');
       setShowSignOutModal(false);
       router.replace('/(auth)/login');
     } catch (err) {
@@ -143,16 +154,20 @@ function SettingsScreen() {
     
     console.log('[Settings] Deleting account for user:', user.id);
 
-    // Delete user data
-    await supabase.from('swipes').delete().or(`swiper_user_id.eq.${user.id},target_user_id.eq.${user.id}`);
-    await supabase.from('matches').delete().or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`);
-    await supabase.from('preferences').delete().eq('user_id', user.id);
-    await supabase.from('swipe_counters').delete().eq('user_id', user.id);
-    await supabase.from('profiles').delete().eq('user_id', user.id);
+    try {
+      await supabase.from('swipes').delete().or(`swiper_user_id.eq.${user.id},target_user_id.eq.${user.id}`);
+      await supabase.from('matches').delete().or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`);
+      await supabase.from('preferences').delete().eq('user_id', user.id);
+      await supabase.from('swipe_counters').delete().eq('user_id', user.id);
+      await supabase.from('profiles').delete().eq('user_id', user.id);
 
-    await signOut();
-    setShowDeleteAccountModal(false);
-    router.replace('/(auth)/login');
+      await signOut();
+      setShowDeleteAccountModal(false);
+      router.replace('/(auth)/login');
+    } catch (err: any) {
+      console.error('[Settings] Delete account error:', err);
+      Alert.alert('Error', err?.message || 'Failed to delete account');
+    }
   };
 
   const handleChangePassword = () => setShowChangePasswordModal(true);
@@ -185,7 +200,7 @@ function SettingsScreen() {
         loading={signingOut}
         colors={colors}
       />
-      
+       
       {/* No header - clean look */}
 
       <ScrollView style={styles.content}>
@@ -416,64 +431,6 @@ function SettingsScreen() {
   );
 }
 
-interface SignOutModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onConfirm: () => Promise<void>;
-  loading: boolean;
-  colors: any;
-}
-
-function SignOutModal({ visible, onClose, onConfirm, loading, colors }: SignOutModalProps) {
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
-          <View style={styles.modalHeader}>
-            <View style={[styles.modalIconContainer, { backgroundColor: `${colors.primary}15` }]}>
-              <Ionicons name="log-out" size={32} color={colors.primary} />
-            </View>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Sign Out?</Text>
-          </View>
-
-          <View style={styles.modalContent}>
-            <Text style={[styles.warningText, { color: colors.textSecondary }]}>
-              Are you sure you want to sign out? You'll need to sign in again to access your account.
-            </Text>
-          </View>
-
-          <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
-            <TouchableOpacity
-              style={[styles.cancelButton, { backgroundColor: colors.background }]}
-              onPress={onClose}
-              disabled={loading}
-            >
-              <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.signOutButton, loading && styles.deleteButtonDisabled]}
-              onPress={onConfirm}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.signOutButtonText}>Sign Out</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 interface DeleteAccountModalProps {
   visible: boolean;
   onClose: () => void;
@@ -522,31 +479,31 @@ function DeleteAccountModal({ visible, onClose, onConfirm, colors }: DeleteAccou
     >
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.modalOverlay}
+        style={modalStyles.overlay}
       >
-        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
-          <View style={styles.modalHeader}>
-            <View style={[styles.modalIconContainer, { backgroundColor: '#FEF2F2' }]}>
+        <View style={[modalStyles.container, { backgroundColor: colors.surface }]}>
+          <View style={modalStyles.header}>
+            <View style={[modalStyles.iconContainer, { backgroundColor: '#FEF2F2' }]}>
               <Ionicons name="warning" size={32} color={colors.error} />
             </View>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Delete Account?</Text>
+            <Text style={[modalStyles.title, { color: colors.text }]}>Delete Account?</Text>
           </View>
 
-          <View style={styles.modalContent}>
-            <Text style={[styles.warningText, { color: colors.text }]}>
+          <View style={modalStyles.content}>
+            <Text style={[modalStyles.warningText, { color: colors.text }]}>
               We're sorry to see you go. This action will <Text style={{ fontWeight: 'bold', color: colors.error }}>permanently delete</Text> your account, matches, messages, and all data.
             </Text>
             
-            <Text style={[styles.regretText, { color: colors.textSecondary }]}>
+            <Text style={[modalStyles.regretText, { color: colors.textSecondary }]}>
               Are you absolutely sure you want to lose all your connections forever? This action cannot be undone.
             </Text>
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>
+            <View style={modalStyles.inputContainer}>
+              <Text style={[modalStyles.inputLabel, { color: colors.text }]}>
                 Type <Text style={{ fontWeight: 'bold', color: colors.primary, letterSpacing: 1 }}>{targetWord}</Text> to confirm:
               </Text>
               <TextInput
-                style={[styles.input, { 
+                style={[modalStyles.input, { 
                   backgroundColor: colors.background, 
                   borderColor: colors.border,
                   color: colors.text 
@@ -560,23 +517,23 @@ function DeleteAccountModal({ visible, onClose, onConfirm, colors }: DeleteAccou
                 placeholderTextColor={colors.textSecondary}
                 autoCapitalize="characters"
               />
-              {error && <Text style={styles.errorText}>{error}</Text>}
+              {error && <Text style={modalStyles.errorText}>{error}</Text>}
             </View>
           </View>
 
-          <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+          <View style={[modalStyles.footer, { borderTopColor: colors.border }]}>
             <TouchableOpacity
-              style={[styles.cancelButton, { backgroundColor: colors.background }]}
+              style={[modalStyles.cancelButton, { backgroundColor: colors.background }]}
               onPress={onClose}
               disabled={loading}
             >
-              <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+              <Text style={[modalStyles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={[
-                styles.deleteButton,
-                (confirmWord.toUpperCase() !== targetWord || loading) && styles.deleteButtonDisabled
+                modalStyles.deleteButton,
+                (confirmWord.toUpperCase() !== targetWord || loading) && modalStyles.deleteButtonDisabled
               ]}
               onPress={handleConfirm}
               disabled={confirmWord.toUpperCase() !== targetWord || loading}
@@ -584,7 +541,7 @@ function DeleteAccountModal({ visible, onClose, onConfirm, colors }: DeleteAccou
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.deleteButtonText}>Delete Forever</Text>
+                <Text style={modalStyles.deleteButtonText}>Delete Forever</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -593,6 +550,112 @@ function DeleteAccountModal({ visible, onClose, onConfirm, colors }: DeleteAccou
     </Modal>
   );
 }
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  container: {
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 400,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  header: {
+    alignItems: 'center',
+    paddingTop: 24,
+    paddingHorizontal: 20,
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  content: {
+    padding: 20,
+  },
+  warningText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 12,
+    lineHeight: 22,
+  },
+  regretText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+    fontStyle: 'italic',
+  },
+  inputContainer: {
+    width: '100%',
+  },
+  inputLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  footer: {
+    flexDirection: 'row',
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+  },
+  deleteButtonDisabled: {
+    opacity: 0.5,
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+});
 
 // Create styles function that takes colors as parameter
 const createStyles = (colors: typeof lightTheme) => StyleSheet.create({
@@ -666,124 +729,6 @@ const createStyles = (colors: typeof lightTheme) => StyleSheet.create({
   },
   bottomSpacer: {
     height: 40,
-  },
-});
-
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContainer: {
-    borderRadius: 20,
-    width: '100%',
-    maxWidth: 400,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  modalHeader: {
-    alignItems: 'center',
-    paddingTop: 24,
-    paddingHorizontal: 20,
-  },
-  modalIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  modalContent: {
-    padding: 20,
-  },
-  warningText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 12,
-    lineHeight: 22,
-  },
-  regretText: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 24,
-    fontStyle: 'italic',
-  },
-  inputContainer: {
-    width: '100%',
-  },
-  inputLabel: {
-    fontSize: 14,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 12,
-    borderTopWidth: 1,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  deleteButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
-  },
-  deleteButtonDisabled: {
-    opacity: 0.5,
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  signOutButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: lightColors.primary,
-    alignItems: 'center',
-  },
-  signOutButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
   },
 });
 

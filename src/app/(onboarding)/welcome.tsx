@@ -4,11 +4,10 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
+  Image,
   Dimensions,
-  StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/ui/Button';
 import { colors } from '../../components/theme/colors';
 
@@ -23,38 +22,34 @@ export default function WelcomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
       <View style={styles.content}>
-        {/* Hero Section */}
+        {/* Logo or Illustration */}
         <View style={styles.heroSection}>
           <View style={styles.iconContainer}>
-            <Ionicons name="heart" size={64} color={colors.primary} />
-            <View style={styles.iconBadge}>
-              <Ionicons name="briefcase" size={24} color="#fff" />
-            </View>
+            <Text style={styles.iconText}>💼❤️</Text>
           </View>
           <Text style={styles.appName}>Partner Productivity</Text>
           <Text style={styles.tagline}>
-            Where ambition meets romance. Find your perfect match and build better habits together.
+            Find your perfect match while building better habits
           </Text>
         </View>
 
         {/* Features */}
         <View style={styles.featuresSection}>
           <FeatureItem
-            icon="heart-circle-outline"
+            icon="💝"
             title="Smart Matching"
-            description="Connect with goal-oriented singles who share your ambition."
+            description="Connect with goal-oriented singles"
           />
           <FeatureItem
-            icon="timer-outline"
+            icon="⏰"
             title="Focus Together"
-            description="Earn extra swipes by completing productivity sessions."
+            description="Earn swipes by staying productive"
           />
           <FeatureItem
-            icon="trending-up-outline"
-            title="Grow Together"
-            description="Build habits, achieve goals, and support each other."
+            icon="🎯"
+            title="Build Habits"
+            description="Date smart, work smarter"
           />
         </View>
 
@@ -74,12 +69,10 @@ export default function WelcomeScreen() {
   );
 }
 
-function FeatureItem({ icon, title, description }: { icon: keyof typeof Ionicons.glyphMap; title: string; description: string }) {
+function FeatureItem({ icon, title, description }: { icon: string; title: string; description: string }) {
   return (
     <View style={styles.featureItem}>
-      <View style={styles.featureIconContainer}>
-        <Ionicons name={icon} size={28} color={colors.primary} />
-      </View>
+      <Text style={styles.featureIcon}>{icon}</Text>
       <View style={styles.featureText}>
         <Text style={styles.featureTitle}>{title}</Text>
         <Text style={styles.featureDescription}>{description}</Text>
@@ -97,89 +90,59 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     justifyContent: 'space-between',
-    paddingVertical: 20,
   },
   heroSection: {
     alignItems: 'center',
-    marginTop: height * 0.05,
+    paddingTop: height * 0.1,
   },
   iconContainer: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
-    position: 'relative',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  iconBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.secondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#fff',
+  iconText: {
+    fontSize: 48,
   },
   appName: {
     fontSize: 32,
-    fontWeight: '800',
+    fontWeight: 'bold',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 12,
     textAlign: 'center',
-    letterSpacing: -0.5,
   },
   tagline: {
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 32,
     lineHeight: 24,
-    fontWeight: '500',
   },
   featuresSection: {
     gap: 24,
-    marginVertical: 32,
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    backgroundColor: colors.surface,
-    padding: 16,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 1,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  featureIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: `${colors.primary}10`,
-    justifyContent: 'center',
-    alignItems: 'center',
+  featureIcon: {
+    fontSize: 40,
   },
   featureText: {
     flex: 1,
   },
   featureTitle: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
@@ -189,23 +152,17 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   ctaSection: {
-    paddingBottom: 20,
+    paddingBottom: 32,
     gap: 16,
   },
   primaryButton: {
     paddingVertical: 16,
-    borderRadius: 16,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
   },
   termsText: {
     fontSize: 12,
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
-    paddingHorizontal: 20,
-    opacity: 0.7,
+    paddingHorizontal: 16,
   },
 });

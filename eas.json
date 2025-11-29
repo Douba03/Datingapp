@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.0.0"
+    "version": ">= 5.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "preview": {
@@ -10,7 +11,18 @@
       },
       "env": {
         "npm_config_legacy_peer_deps": "true",
-        "NODE_OPTIONS": "--max-old-space-size=4096"
+        "NODE_OPTIONS": "--max-old-space-size=4096",
+        "EXPO_NO_CAPABILITY_SYNC": "1"
+      }
+    },
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "npm_config_legacy_peer_deps": "true"
       }
     },
     "production": {

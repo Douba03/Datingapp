@@ -1,4 +1,4 @@
-import React, { useState, useRef, memo, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,14 @@ import {
   Alert,
   TouchableOpacity,
   Animated,
-  Platform,
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useMatches } from '../../hooks/useMatches';
 import { SwipeCard } from '../../components/swipe/SwipeCard';
+import { SwipeCounter } from '../../components/swipe/SwipeCounter';
 import { NoSwipesLeftBanner } from '../../components/swipe/NoSwipesLeftBanner';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
@@ -21,92 +22,57 @@ import { SimpleWarningAlert } from '../../components/warnings/SimpleWarningAlert
 import { MatchModal } from '../../components/matches/MatchModal';
 import { UpgradePrompt } from '../../components/premium/UpgradePrompt';
 import { useAuth } from '../../hooks/useAuth';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, shadows } from '../../components/theme/colors';
+import { colors } from '../../components/theme/colors';
 
-const { width: screenWidth } = Dimensions.get('window');
-const isSmallDevice = screenWidth < 375;
+const { width } = Dimensions.get('window');
 
-// Button configs - defined once outside component
-const BUTTON_CONFIGS = {
-  pass: {
-    gradient: [colors.pass, '#8A8590'] as [string, string],
-    icon: 'close' as const,
-    size: isSmallDevice ? 54 : 60,
-    iconSize: isSmallDevice ? 26 : 30,
-  },
-  superlike: {
-    gradient: [colors.superlike, colors.secondaryDark] as [string, string],
-    icon: 'star' as const,
-    size: isSmallDevice ? 48 : 52,
-    iconSize: isSmallDevice ? 22 : 24,
-  },
-  like: {
-    gradient: [colors.like, colors.primaryDark] as [string, string],
-    icon: 'heart' as const,
-    size: isSmallDevice ? 54 : 60,
-    iconSize: isSmallDevice ? 26 : 30,
-  },
-};
-
-// Action Button Component - memoized to prevent re-renders
-interface ActionButtonProps {
-  type: 'pass' | 'superlike' | 'like';
+// Memoized Action Button Component
+const ActionButton = React.memo(({ 
+  onPress, 
+  icon, 
+  gradientColors, 
+  size = 60,
+  iconSize = 28,
+}: {
   onPress: () => void;
-  disabled?: boolean;
-}
+  icon: string;
+  gradientColors: string[];
+  size?: number;
+  iconSize?: number;
+}) => {
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
 
-const ActionButton = memo(function ActionButton({ type, onPress, disabled }: ActionButtonProps) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const config = BUTTON_CONFIGS[type];
-
-  const handlePressIn = useCallback(() => {
+  const handlePressIn = () => {
     Animated.spring(scaleAnim, {
-      toValue: 0.88,
+      toValue: 0.9,
       useNativeDriver: true,
     }).start();
-  }, [scaleAnim]);
+  };
 
-  const handlePressOut = useCallback(() => {
+  const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
       friction: 3,
-      tension: 200,
       useNativeDriver: true,
     }).start();
-  }, [scaleAnim]);
+  };
 
   return (
     <TouchableOpacity
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      disabled={disabled}
-      activeOpacity={1}
+      activeOpacity={0.9}
     >
-      <Animated.View
-        style={[
-          {
-            width: config.size,
-            height: config.size,
-            borderRadius: config.size / 2,
-            transform: [{ scale: scaleAnim }],
-            ...shadows.medium,
-          },
-        ]}
-      >
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
         <LinearGradient
-          colors={config.gradient}
+          colors={gradientColors as any}
           style={[
             styles.actionButton,
-            {
-              width: config.size,
-              height: config.size,
-              borderRadius: config.size / 2,
-            },
+            { width: size, height: size, borderRadius: size / 2 }
           ]}
         >
-          <Ionicons name={config.icon} size={config.iconSize} color="#fff" />
+          <Ionicons name={icon as any} size={iconSize} color="#fff" />
         </LinearGradient>
       </Animated.View>
     </TouchableOpacity>
@@ -116,13 +82,22 @@ const ActionButton = memo(function ActionButton({ type, onPress, disabled }: Act
 function DiscoverScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { profiles, swipeCounter, loading, swipe, canSwipe, getNextRefillTime, undoLastSwipe, refreshSwipeCounter } = useMatches();
+  const { 
+    profiles, 
+    swipeCounter, 
+    loading, 
+    swipe, 
+    canSwipe, 
+    getNextRefillTime, 
+    undoLastSwipe,
+    refreshSwipeCounter 
+  } = useMatches();
+  
   const [matchModalVisible, setMatchModalVisible] = useState(false);
   const [matchedUser, setMatchedUser] = useState<{ name: string; photo?: string } | null>(null);
   const [isSuperLikeMatch, setIsSuperLikeMatch] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
-  // Memoize current profile to prevent unnecessary re-renders
   const currentProfile = useMemo(() => profiles[0], [profiles]);
 
   const handleSwipe = useCallback(async (action: 'like' | 'pass' | 'superlike') => {
@@ -130,7 +105,7 @@ function DiscoverScreen() {
       const nextRefill = getNextRefillTime();
       if (nextRefill) {
         Alert.alert(
-          '💕 No Swipes Left',
+          'No Swipes Left',
           `Your swipes will refill at ${nextRefill.toLocaleTimeString()}`,
           [{ text: 'OK' }]
         );
@@ -138,25 +113,33 @@ function DiscoverScreen() {
       return;
     }
 
-    if (!currentProfile) return;
+    const profile = currentProfile;
+    if (!profile) {
+      return;
+    }
 
     try {
-      const { data, error } = await swipe(currentProfile.user_id, action);
+      const { data, error } = await swipe(profile.user_id, action);
       
       if (error) {
-        Alert.alert('Error', (error as any).message || 'Failed to swipe');
+        console.error('[Discover] Swipe error:', error);
+        Alert.alert('Error', error instanceof Error ? error.message : 'Failed to swipe');
         return;
       }
 
       if (data?.is_match) {
-        setMatchedUser({ name: currentProfile.first_name, photo: currentProfile.photos?.[0] });
+        setMatchedUser({ 
+          name: profile.first_name, 
+          photo: profile.photos?.[0] 
+        });
         setIsSuperLikeMatch(action === 'superlike');
         setMatchModalVisible(true);
       }
     } catch (error) {
+      console.error('[Discover] Unexpected error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     }
-  }, [canSwipe, getNextRefillTime, swipe, currentProfile]);
+  }, [canSwipe, getNextRefillTime, currentProfile, swipe]);
 
   const handleProfilePress = useCallback(() => {
     Alert.alert('Profile', 'Profile detail screen would open here');
@@ -164,115 +147,104 @@ function DiscoverScreen() {
 
   const handleMatchContinue = useCallback(() => {
     setMatchModalVisible(false);
-    setMatchedUser(null);
-    setIsSuperLikeMatch(false);
   }, []);
 
-  const handleSendMessage = useCallback(() => {
+  const handleMatchMessage = useCallback(() => {
     setMatchModalVisible(false);
-    setMatchedUser(null);
-    setIsSuperLikeMatch(false);
     router.push('/(tabs)/matches');
   }, [router]);
 
-  const handleUndo = useCallback(async () => {
-    if (!user?.is_premium) {
-      setShowUpgradePrompt(true);
-      return;
-    }
-
-    try {
-      const { error } = await undoLastSwipe();
-      if (error) {
-        Alert.alert('No Swipe to Undo', 'You haven\'t swiped anyone yet');
-      } else {
-        Alert.alert('✨ Success', 'Last swipe undone!');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to undo swipe');
-    }
-  }, [user?.is_premium, undoLastSwipe]);
+  const handleTimerComplete = useCallback(() => {
+    refreshSwipeCounter();
+  }, [refreshSwipeCounter]);
 
   const handleUpgrade = useCallback(() => {
     setShowUpgradePrompt(true);
   }, []);
 
-  // Memoize handlers for action buttons
-  const handlePassPress = useCallback(() => handleSwipe('pass'), [handleSwipe]);
-  const handleSuperlikePress = useCallback(() => handleSwipe('superlike'), [handleSwipe]);
-  const handleLikePress = useCallback(() => handleSwipe('like'), [handleSwipe]);
+  const handleLike = useCallback(() => handleSwipe('like'), [handleSwipe]);
+  const handlePass = useCallback(() => handleSwipe('pass'), [handleSwipe]);
+  const handleSuperlike = useCallback(() => handleSwipe('superlike'), [handleSwipe]);
 
-  const isOutOfSwipes = swipeCounter && swipeCounter.remaining === 0;
-
+  // Loading state
   if (loading) {
-    return <LoadingSpinner text="Finding matches..." emoji="💕" />;
-  }
-
-  // Show NoSwipesLeftBanner when out of swipes
-  if (isOutOfSwipes) {
     return (
       <SafeAreaView style={styles.container}>
-        <LinearGradient colors={['#FDF8F8', '#FFF0F5', '#FAF0FF']} style={styles.backgroundGradient} />
-        <SimpleWarningAlert />
-        <NoSwipesLeftBanner 
-          nextRefillTime={getNextRefillTime()} 
-          onUpgradePress={handleUpgrade}
-          onTimerComplete={refreshSwipeCounter}
+        <View style={styles.loadingContainer}>
+          <LoadingSpinner />
+          <Text style={styles.loadingText}>Finding matches... 💕</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // No swipes left
+  const noSwipesLeft = swipeCounter && swipeCounter.remaining <= 0;
+  if (noSwipesLeft) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <NoSwipesLeftBanner
+          nextRefillTime={getNextRefillTime()}
+          onUpgrade={handleUpgrade}
+          onTimerComplete={handleTimerComplete}
         />
         <UpgradePrompt
           visible={showUpgradePrompt}
           onClose={() => setShowUpgradePrompt(false)}
           onUpgrade={() => {
             setShowUpgradePrompt(false);
-            Alert.alert('Coming Soon', 'Premium payment will be available soon!');
+            router.push('/(premium)/subscribe');
           }}
-          trigger="swipes"
         />
       </SafeAreaView>
     );
   }
 
-  // No more profiles - come back later message
+  // No profiles left
   if (profiles.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
-        <LinearGradient colors={['#FDF8F8', '#FFF0F5', '#FAF0FF']} style={styles.backgroundGradient} />
-        <SimpleWarningAlert />
         <View style={styles.emptyContainer}>
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIconContainer}>
-              <Text style={styles.emptyEmoji}>🌟</Text>
-            </View>
+          <LinearGradient
+            colors={['#FDF2F8', '#FCE7F3']}
+            style={styles.emptyCard}
+          >
+            <Text style={styles.emptyEmoji}>🎉</Text>
             <Text style={styles.emptyTitle}>You've Seen Everyone!</Text>
             <Text style={styles.emptySubtitle}>
-              Great job! You've gone through all available profiles in your area.
+              You've gone through all potential matches in your area. Check back later for new people!
             </Text>
             
             <View style={styles.tipsList}>
               <View style={styles.tipItem}>
-                <Text style={styles.tipIcon}>⏰</Text>
-                <Text style={styles.tipText}>Come back later for new people</Text>
+                <Text style={styles.tipIcon}>💡</Text>
+                <Text style={styles.tipText}>Expand your distance preferences</Text>
               </View>
               <View style={styles.tipItem}>
-                <Text style={styles.tipIcon}>📍</Text>
-                <Text style={styles.tipText}>Try expanding your distance settings</Text>
+                <Text style={styles.tipIcon}>🔄</Text>
+                <Text style={styles.tipText}>Check back tomorrow for new users</Text>
               </View>
               <View style={styles.tipItem}>
                 <Text style={styles.tipIcon}>💬</Text>
-                <Text style={styles.tipText}>Check your matches and start chatting</Text>
+                <Text style={styles.tipText}>Chat with your existing matches</Text>
               </View>
             </View>
 
-            <TouchableOpacity 
-              style={styles.checkMatchesButton}
+            <TouchableOpacity
+              style={styles.viewMatchesButton}
               onPress={() => router.push('/(tabs)/matches')}
-              activeOpacity={0.85}
             >
-              <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.buttonGradient}>
-                <Text style={styles.checkMatchesText}>💕 View My Matches</Text>
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.viewMatchesGradient}
+              >
+                <Ionicons name="heart" size={20} color="#fff" />
+                <Text style={styles.viewMatchesText}>View My Matches</Text>
               </LinearGradient>
             </TouchableOpacity>
-          </View>
+          </LinearGradient>
         </View>
       </SafeAreaView>
     );
@@ -280,28 +252,19 @@ function DiscoverScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient colors={['#FDF8F8', '#FEFEFE', '#FAF8FF']} style={styles.backgroundGradient} />
-      
       <SimpleWarningAlert />
       
-      <MatchModal
-        visible={matchModalVisible}
-        matchedUserName={matchedUser?.name || ''}
-        matchedUserPhoto={matchedUser?.photo}
-        onContinue={handleMatchContinue}
-        onSendMessage={handleSendMessage}
-        isSuperLike={isSuperLikeMatch}
-      />
-
-      {/* Swipe counter badge - top right */}
+      {/* Swipe Counter Badge */}
       {swipeCounter && (
-        <View style={styles.swipeCounterBadge}>
-          <Text style={styles.swipeCounterText}>{swipeCounter.remaining}</Text>
-          <Ionicons name="heart" size={12} color={colors.primary} />
+        <View style={styles.counterBadge}>
+          <SwipeCounter 
+            remaining={swipeCounter.remaining} 
+            total={swipeCounter.daily_limit} 
+          />
         </View>
       )}
 
-      {/* Card Container - full screen */}
+      {/* Main Card */}
       <View style={styles.cardContainer}>
         {currentProfile && (
           <SwipeCard
@@ -313,138 +276,123 @@ function DiscoverScreen() {
       </View>
 
       {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        {user?.is_premium && (
-          <TouchableOpacity style={styles.undoButton} onPress={handleUndo}>
-            <Ionicons name="refresh" size={18} color={colors.accent} />
-          </TouchableOpacity>
-        )}
-        
-        <View style={styles.buttonRow}>
-          <ActionButton type="pass" onPress={handlePassPress} />
-          <ActionButton type="superlike" onPress={handleSuperlikePress} />
-          <ActionButton type="like" onPress={handleLikePress} />
-        </View>
+      <View style={styles.actionsContainer}>
+        <ActionButton
+          onPress={handlePass}
+          icon="close"
+          gradientColors={['#F87171', '#EF4444']}
+          size={56}
+          iconSize={26}
+        />
+        <ActionButton
+          onPress={handleSuperlike}
+          icon="star"
+          gradientColors={['#60A5FA', '#3B82F6']}
+          size={48}
+          iconSize={22}
+        />
+        <ActionButton
+          onPress={handleLike}
+          icon="heart"
+          gradientColors={[colors.primary, colors.secondary]}
+          size={56}
+          iconSize={26}
+        />
       </View>
 
+      {/* Match Modal */}
+      <MatchModal
+        visible={matchModalVisible}
+        matchedUser={matchedUser}
+        isSuperLike={isSuperLikeMatch}
+        onContinue={handleMatchContinue}
+        onMessage={handleMatchMessage}
+      />
+
+      {/* Upgrade Prompt */}
       <UpgradePrompt
         visible={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
         onUpgrade={() => {
           setShowUpgradePrompt(false);
-          Alert.alert('Coming Soon', 'Premium payment will be available soon!');
+          router.push('/(premium)/subscribe');
         }}
-        trigger="undo"
       />
     </SafeAreaView>
-  );
-}
-
-export default function DiscoverScreenWrapper() {
-  return (
-    <ProtectedRoute>
-      <DiscoverScreen />
-    </ProtectedRoute>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FAFAFA',
   },
-  backgroundGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  swipeCounterBadge: {
-    position: 'absolute',
-    top: Platform.OS === 'android' ? 40 : 50,
-    right: 16,
-    flexDirection: 'row',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 4,
-    zIndex: 100,
-    ...shadows.small,
   },
-  swipeCounterText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.primary,
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  counterBadge: {
+    position: 'absolute',
+    top: 60,
+    right: 16,
+    zIndex: 10,
   },
   cardContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'android' ? 20 : 10,
+    paddingTop: 20,
+    paddingBottom: 10,
   },
-  actionButtons: {
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 16,
-    alignItems: 'center',
-  },
-  undoButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...shadows.small,
-    position: 'absolute',
-    top: -45,
-    right: 20,
-    zIndex: 10,
-  },
-  buttonRow: {
+  actionsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: isSmallDevice ? 20 : 28,
+    gap: 24,
+    paddingVertical: 20,
+    paddingBottom: 30,
   },
   actionButton: {
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    padding: 16,
   },
   emptyCard: {
-    backgroundColor: colors.surface,
+    width: width - 32,
     borderRadius: 24,
-    padding: 28,
+    padding: 32,
     alignItems: 'center',
-    width: '100%',
-    maxWidth: 360,
-    ...shadows.large,
-  },
-  emptyIconContainer: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: `${colors.primary}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
   },
   emptyEmoji: {
-    fontSize: 45,
+    fontSize: 64,
+    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: 10,
+    marginBottom: 12,
     textAlign: 'center',
   },
   emptySubtitle: {
@@ -456,40 +404,53 @@ const styles = StyleSheet.create({
   },
   tipsList: {
     width: '100%',
-    gap: 12,
     marginBottom: 24,
+    gap: 12,
   },
   tipItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: '#fff',
+    padding: 12,
     borderRadius: 12,
     gap: 12,
   },
   tipIcon: {
-    fontSize: 18,
+    fontSize: 20,
   },
   tipText: {
-    flex: 1,
     fontSize: 14,
     color: colors.text,
+    flex: 1,
   },
-  checkMatchesButton: {
-    width: '100%',
+  viewMatchesButton: {
     borderRadius: 14,
     overflow: 'hidden',
-    ...shadows.glow,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  buttonGradient: {
+  viewMatchesGradient: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
+    paddingHorizontal: 32,
+    gap: 8,
   },
-  checkMatchesText: {
+  viewMatchesText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });
+
+export default function DiscoverScreenWrapper() {
+  return (
+    <ProtectedRoute>
+      <DiscoverScreen />
+    </ProtectedRoute>
+  );
+}

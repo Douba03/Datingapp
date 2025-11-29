@@ -441,18 +441,16 @@ export function useAuth() {
         password,
       });
       console.log('[useAuth] signIn response:', { data, error });
+      console.log('[useAuth] Data user:', data?.user);
+      console.log('[useAuth] Data session:', data?.session);
       
-      // If auth error (wrong password, user doesn't exist in auth), return error
-      if (error) {
-        return { data, error, needsOnboarding: false };
-      }
-      
-      // If login successful, check if profile exists
-      if (data?.user) {
+      // If login successful but profile doesn't exist, create it
+      if (data?.user && !error) {
         console.log('[useAuth] Login successful, checking if profile exists...');
         
         // Check if profile exists with timeout protection
         let existingProfile: any = null;
+        let profileCheckError: any = null;
         try {
           const profileCheckResult = await Promise.race([
             supabase
@@ -465,53 +463,127 @@ export function useAuth() {
             ) as Promise<any>
           ]);
           existingProfile = (profileCheckResult as any)?.data || null;
+          profileCheckError = (profileCheckResult as any)?.error || null;
         } catch (err) {
           console.warn('[useAuth] Error or timeout checking profile:', err);
+          profileCheckError = { message: 'Timeout or error' };
+        }
+          
+        if (profileCheckError && profileCheckError.message !== 'Timeout') {
+          console.error('[useAuth] Error checking profile:', profileCheckError);
         }
         
-        // If no profile exists, return needsOnboarding flag
+        // If no profile exists, create one
         if (!existingProfile) {
-          console.log('[useAuth] No profile found - user needs to complete onboarding');
-          return { data, error: null, needsOnboarding: true };
+          console.log('[useAuth] No profile found, creating one...');
+          try {
+            // Create a profile for the user with timeout protection
+            let profileData: any = null;
+            let profileError: any = null;
+            try {
+              const profileCreateResult = await Promise.race([
+                supabase
+                  .from('profiles')
+                  .insert([
+                    { 
+                      user_id: data.user.id,
+                      first_name: email.split('@')[0],
+                      date_of_birth: '1995-01-01', // Default value
+                      gender: 'prefer_not_to_say',
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                    }
+                  ])
+                  .select(),
+                new Promise((resolve) => 
+                  setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 5000)
+                ) as Promise<any>
+              ]);
+              profileData = (profileCreateResult as any)?.data || null;
+              profileError = (profileCreateResult as any)?.error || null;
+            } catch (err) {
+              console.warn('[useAuth] Error or timeout creating profile:', err);
+              profileError = { message: 'Timeout or error' };
+            }
+            
+            if (profileError) {
+              console.error('[useAuth] Error creating profile during login:', profileError);
+            } else {
+              console.log('[useAuth] Profile created successfully during login:', profileData);
+            }
+            
+            // Check if preferences exist with timeout protection
+            let existingPrefs: any = null;
+            try {
+              const prefCheckResult = await Promise.race([
+                supabase
+                  .from('preferences')
+                  .select('*')
+                  .eq('user_id', data.user.id)
+                  .maybeSingle(),
+                new Promise((resolve) => 
+                  setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 5000)
+                ) as Promise<any>
+              ]);
+              existingPrefs = (prefCheckResult as any)?.data || null;
+            } catch (err) {
+              console.warn('[useAuth] Error or timeout checking preferences:', err);
+            }
+              
+            // If no preferences exist, create them
+            if (!existingPrefs) {
+              let prefData: any = null;
+              let prefError: any = null;
+              try {
+                const prefCreateResult = await Promise.race([
+                  supabase
+                    .from('preferences')
+                    .insert([
+                      { 
+                        user_id: data.user.id,
+                        age_min: 18,
+                        age_max: 100,
+                        max_distance_km: 50,
+                        relationship_intent: 'not_sure',
+                        focus_session_duration: 25,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                      }
+                    ])
+                    .select(),
+                  new Promise((resolve) => 
+                    setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 5000)
+                  ) as Promise<any>
+                ]);
+                prefData = (prefCreateResult as any)?.data || null;
+                prefError = (prefCreateResult as any)?.error || null;
+              } catch (err) {
+                console.warn('[useAuth] Error or timeout creating preferences:', err);
+                prefError = { message: 'Timeout or error' };
+              }
+                
+              if (prefError) {
+                console.error('[useAuth] Error creating preferences during login:', prefError);
+              } else {
+                console.log('[useAuth] Preferences created successfully during login:', prefData);
+              }
+            }
+          } catch (createError) {
+            console.error('[useAuth] Error in profile/preferences creation during login:', createError);
+          }
         }
-        
-        console.log('[useAuth] Profile exists, login complete');
       }
       
-      return { data, error, needsOnboarding: false };
+      return { data, error };
     } catch (err) {
       console.error('[useAuth] Login catch error:', err);
-      return { data: null, error: err, needsOnboarding: false };
+      return { data: null, error: err };
     }
   };
 
   const signOut = async () => {
-    try {
-      console.log('[useAuth] Signing out...');
-      
-      // Clear local state first
-      setUser(null);
-      setProfile(null);
-      setSession(null);
-      
-      // Then sign out from Supabase
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('[useAuth] Sign out error:', error);
-        return { error };
-      }
-      
-      console.log('[useAuth] ✅ Sign out successful');
-      return { error: null };
-    } catch (err) {
-      console.error('[useAuth] Sign out exception:', err);
-      // Still clear state even if there's an error
-      setUser(null);
-      setProfile(null);
-      setSession(null);
-      return { error: err };
-    }
+    const { error } = await supabase.auth.signOut();
+    return { error };
   };
 
   const refreshProfile = async () => {

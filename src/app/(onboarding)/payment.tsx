@@ -74,7 +74,7 @@ export default function PaymentScreen() {
         {
           text: 'Upgrade to Premium',
           onPress: async () => {
-            setLoading(true);
+            setSkipLoading(true);
             try {
               // Directly update user to premium for testing
               const { error } = await supabase
@@ -88,11 +88,12 @@ export default function PaymentScreen() {
               if (error) {
                 console.error('[Payment] Error upgrading user:', error);
                 Alert.alert('Error', 'Failed to upgrade to Premium');
-                setLoading(false);
+                setSkipLoading(false);
                 return;
               }
 
               console.log('[Payment] Successfully upgraded user to Premium');
+              await refreshProfile();
 
               // Navigate to main app
               Alert.alert('Success!', 'Welcome to Premium!', [
@@ -101,7 +102,7 @@ export default function PaymentScreen() {
             } catch (error) {
               console.error('[Payment] Error upgrading user:', error);
               Alert.alert('Error', 'Something went wrong');
-              setLoading(false);
+              setSkipLoading(false);
             }
           },
         },
@@ -121,7 +122,7 @@ export default function PaymentScreen() {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
-            disabled={processingPayment}
+            disabled={purchaseLoading || skipLoading}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
@@ -178,38 +179,55 @@ export default function PaymentScreen() {
 
         {/* Purchase Button */}
         <TouchableOpacity
-          style={[styles.paymentButton, (loading || processingPayment) && styles.paymentButtonDisabled]}
+          style={[styles.paymentButton, (purchaseLoading || skipLoading) && styles.paymentButtonDisabled]}
           onPress={handlePurchasePremium}
-          disabled={loading || processingPayment}
+          disabled={purchaseLoading || skipLoading}
         >
-          {processingPayment ? (
+          {purchaseLoading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
               <Ionicons name="star" size={24} color="#fff" />
               <Text style={styles.paymentButtonText}>
-                Subscribe to Premium - $1.99/month
+                Subscribe to Premium - {price}/month
               </Text>
             </>
           )}
         </TouchableOpacity>
+
+        {/* Restore Purchases */}
+        {iapAvailable && (
+          <TouchableOpacity
+            style={styles.restoreButton}
+            onPress={handleRestorePurchases}
+            disabled={restoring || purchaseLoading}
+          >
+            {restoring ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+            )}
+          </TouchableOpacity>
+        )}
 
         {/* Testing Option */}
         <View style={styles.testingSection}>
           <View style={styles.mobileNote}>
             <Ionicons name="information-circle" size={20} color={colors.textSecondary} />
             <Text style={styles.mobileNoteText}>
-              In-App Purchase (Apple/Google) coming soon! For testing, use "Skip Payment" below.
+              {iapAvailable 
+                ? 'Tap "Subscribe" to purchase through the App Store or Google Play.'
+                : 'In-App Purchases are only available on iOS and Android. Use "Skip Payment" for testing.'}
             </Text>
           </View>
 
           <TouchableOpacity
             style={styles.skipButton}
             onPress={handleSkipPayment}
-            disabled={loading || processingPayment}
+            disabled={purchaseLoading || skipLoading}
           >
             <Text style={styles.skipButtonText}>
-              Skip Payment (Testing Only)
+              {skipLoading ? 'Processing...' : 'Skip Payment (Testing Only)'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -381,6 +399,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  restoreButton: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  restoreButtonText: {
+    fontSize: 15,
+    color: colors.primary,
+    fontWeight: '600',
   },
   testingSection: {
     marginTop: 16,

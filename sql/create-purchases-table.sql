@@ -65,3 +65,8 @@ GRANT ALL ON purchases TO service_role;
 COMMENT ON TABLE purchases IS 'Tracks all premium subscription purchases';
 
 
+
+
+
+
+

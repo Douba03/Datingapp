@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,12 @@ import {
   Dimensions,
   TouchableOpacity,
   Animated,
-  Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Profile } from '../../types/user';
-import { colors, shadows } from '../theme/colors';
+import { colors } from '../theme/colors';
 import { calculateDistance, formatDistance } from '../../utils/location';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -24,73 +23,40 @@ interface SwipeCardProps {
 }
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-
-// Responsive sizing
-const isSmallDevice = screenWidth < 375;
-const cardWidth = Math.min(screenWidth * 0.92, 400);
-const cardHeight = Math.min(screenHeight * 0.65, 550);
+const isSmallDevice = screenHeight < 700;
+const CARD_HEIGHT = isSmallDevice ? screenHeight * 0.55 : screenHeight * 0.62;
 
 export function SwipeCard({ profile, onSwipe, onPress }: SwipeCardProps) {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const { profile: currentUserProfile } = useAuth();
-  
-  // Animated values
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const cardScale = useRef(new Animated.Value(1)).current;
-  const likeOpacity = useRef(new Animated.Value(0)).current;
-  const passOpacity = useRef(new Animated.Value(0)).current;
-  const superlikeOpacity = useRef(new Animated.Value(0)).current;
-  
+  const translateX = new Animated.Value(0);
+  const translateY = new Animated.Value(0);
   const rotate = translateX.interpolate({
     inputRange: [-screenWidth / 2, 0, screenWidth / 2],
     outputRange: ['-10deg', '0deg', '10deg'],
   });
 
-  // Swipe indicator animations
-  useEffect(() => {
-    const likeListener = translateX.addListener(({ value }) => {
-      if (value > 0) {
-        likeOpacity.setValue(Math.min(value / 80, 1));
-        passOpacity.setValue(0);
-      } else {
-        passOpacity.setValue(Math.min(Math.abs(value) / 80, 1));
-        likeOpacity.setValue(0);
-      }
-    });
+  // Swipe indicators
+  const likeOpacity = translateX.interpolate({
+    inputRange: [0, screenWidth / 4],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
 
-    const superlikeListener = translateY.addListener(({ value }) => {
-      if (value < -15) {
-        superlikeOpacity.setValue(Math.min(Math.abs(value) / 60, 1));
-      } else {
-        superlikeOpacity.setValue(0);
-      }
-    });
+  const nopeOpacity = translateX.interpolate({
+    inputRange: [-screenWidth / 4, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
 
-    return () => {
-      translateX.removeListener(likeListener);
-      translateY.removeListener(superlikeListener);
-    };
-  }, []);
-
-  // Reset position when profile changes
-  useEffect(() => {
-    translateX.setValue(0);
-    translateY.setValue(0);
-    cardScale.setValue(1);
-    likeOpacity.setValue(0);
-    passOpacity.setValue(0);
-    superlikeOpacity.setValue(0);
-    setCurrentPhotoIndex(0);
-  }, [profile.user_id]);
-
-  // Calculate distance
   const getDistanceText = () => {
     if (!currentUserProfile?.location || !profile.location) {
-      return profile.city || 'Nearby';
+      return profile.city ? `${profile.city}` : 'Location unknown';
     }
+    
     const distance = calculateDistance(currentUserProfile.location, profile.location);
-    return `${formatDistance(distance)}${profile.city ? ` · ${profile.city}` : ''}`;
+    const cityText = profile.city ? ` • ${profile.city}` : '';
+    return `${formatDistance(distance)}${cityText}`;
   };
 
   const handleGestureEvent = Animated.event(
@@ -98,65 +64,54 @@ export function SwipeCard({ profile, onSwipe, onPress }: SwipeCardProps) {
     { useNativeDriver: true }
   );
 
-  const handleGestureEnd = (event: any) => {
-    const { translationX: tX, translationY: tY, velocityX, velocityY } = event.nativeEvent;
-    
-    const isVertical = Math.abs(tY) > Math.abs(tX);
-    const threshold = screenWidth * 0.25;
-    const velocityThreshold = 350;
-
-    if (isVertical && tY < -50) {
-      if (Math.abs(tY) > threshold || Math.abs(velocityY) > velocityThreshold) {
-        Animated.parallel([
-          Animated.timing(translateY, {
-            toValue: -screenHeight,
-            duration: 250,
-            useNativeDriver: true,
-          }),
-          Animated.timing(cardScale, {
-            toValue: 0.85,
-            duration: 250,
-            useNativeDriver: true,
-          }),
-        ]).start(() => onSwipe('superlike'));
-        return;
-      }
-    } else if (!isVertical) {
-      if (Math.abs(tX) > threshold || Math.abs(velocityX) > velocityThreshold) {
-        const direction = tX > 0 ? 'like' : 'pass';
-        const targetX = tX > 0 ? screenWidth * 1.5 : -screenWidth * 1.5;
-
-        Animated.parallel([
-          Animated.timing(translateX, {
-            toValue: targetX,
-            duration: 250,
-            useNativeDriver: true,
-          }),
-          Animated.timing(translateY, {
-            toValue: tY + 20,
-            duration: 250,
-            useNativeDriver: true,
-          }),
-          Animated.timing(cardScale, {
-            toValue: 0.9,
-            duration: 250,
-            useNativeDriver: true,
-          }),
-        ]).start(() => onSwipe(direction));
-        return;
+  const handleStateChange = (event: any) => {
+    if (event.nativeEvent.state === 5) {
+      const { translationX, translationY, velocityX, velocityY } = event.nativeEvent;
+      
+      if (translationY < -120 || velocityY < -800) {
+        Animated.timing(translateY, {
+          toValue: -screenHeight,
+          duration: 300,
+          useNativeDriver: true,
+        }).start(() => {
+          onSwipe('superlike');
+        });
+      } else if (translationX > 120 || velocityX > 800) {
+        Animated.timing(translateX, {
+          toValue: screenWidth,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          onSwipe('like');
+        });
+      } else if (translationX < -120 || velocityX < -800) {
+        Animated.timing(translateX, {
+          toValue: -screenWidth,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          onSwipe('pass');
+        });
+      } else {
+        Animated.spring(translateX, {
+          toValue: 0,
+          friction: 5,
+          useNativeDriver: true,
+        }).start();
+        Animated.spring(translateY, {
+          toValue: 0,
+          friction: 5,
+          useNativeDriver: true,
+        }).start();
       }
     }
-
-    // Snap back
-    Animated.parallel([
-      Animated.spring(translateX, { toValue: 0, friction: 6, tension: 100, useNativeDriver: true }),
-      Animated.spring(translateY, { toValue: 0, friction: 6, tension: 100, useNativeDriver: true }),
-      Animated.spring(cardScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: true }),
-    ]).start();
   };
 
+  const photos = profile.photos?.filter(Boolean) || [];
+  const currentPhoto = photos[currentPhotoIndex] || 'https://via.placeholder.com/400x600?text=No+Photo';
+
   const nextPhoto = () => {
-    if (currentPhotoIndex < profile.photos.length - 1) {
+    if (currentPhotoIndex < photos.length - 1) {
       setCurrentPhotoIndex(currentPhotoIndex + 1);
     }
   };
@@ -167,123 +122,126 @@ export function SwipeCard({ profile, onSwipe, onPress }: SwipeCardProps) {
     }
   };
 
+  const age = profile.birth_date
+    ? Math.floor((new Date().getTime() - new Date(profile.birth_date).getTime()) / 31557600000)
+    : null;
+
   return (
     <PanGestureHandler
       onGestureEvent={handleGestureEvent}
-      onHandlerStateChange={handleGestureEnd}
+      onHandlerStateChange={handleStateChange}
     >
       <Animated.View
         style={[
           styles.card,
           {
-            width: cardWidth,
-            height: cardHeight,
             transform: [
               { translateX },
               { translateY },
               { rotate },
-              { scale: cardScale },
             ],
           },
         ]}
       >
-        {/* LIKE Badge */}
-        <Animated.View style={[styles.swipeBadge, styles.likeBadge, { opacity: likeOpacity }]}>
-          <Text style={styles.likeBadgeText}>LIKE 💖</Text>
-        </Animated.View>
+        <TouchableOpacity 
+          activeOpacity={0.95} 
+          onPress={onPress}
+          style={styles.cardTouchable}
+        >
+          <Image source={{ uri: currentPhoto }} style={styles.image} />
+          
+          {/* Gradient Overlay */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.85)']}
+            locations={[0.4, 0.65, 1]}
+            style={styles.gradient}
+          />
 
-        {/* PASS Badge */}
-        <Animated.View style={[styles.swipeBadge, styles.passBadge, { opacity: passOpacity }]}>
-          <Text style={styles.passBadgeText}>NOPE 👋</Text>
-        </Animated.View>
-
-        {/* SUPERLIKE Badge */}
-        <Animated.View style={[styles.swipeBadge, styles.superlikeBadge, { opacity: superlikeOpacity }]}>
-          <Text style={styles.superlikeBadgeText}>SUPER ⭐</Text>
-        </Animated.View>
-
-        <TouchableOpacity onPress={onPress} style={styles.cardContent} activeOpacity={0.98}>
-          <View style={styles.imageContainer}>
-            <Image
-              source={{ uri: profile.photos[currentPhotoIndex] }}
-              style={styles.image}
-              resizeMode="cover"
-            />
-            
-            {/* Gradient overlay */}
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.5)']}
-              style={styles.imageGradient}
-            />
-            
-            {/* Photo indicators */}
-            {profile.photos.length > 1 && (
-              <View style={styles.photoIndicators}>
-                {profile.photos.map((_, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.indicator,
-                      index === currentPhotoIndex && styles.activeIndicator,
-                    ]}
-                  />
-                ))}
-              </View>
-            )}
-
-            {/* Photo navigation - visible buttons */}
-            {profile.photos.length > 1 && (
-              <>
-                {currentPhotoIndex > 0 && (
-                  <TouchableOpacity style={[styles.navButton, styles.prevButton]} onPress={prevPhoto} activeOpacity={0.7}>
-                    <View style={styles.navButtonInner}>
-                      <Ionicons name="chevron-back" size={24} color="#fff" />
-                    </View>
-                  </TouchableOpacity>
-                )}
-                {currentPhotoIndex < profile.photos.length - 1 && (
-                  <TouchableOpacity style={[styles.navButton, styles.nextButton]} onPress={nextPhoto} activeOpacity={0.7}>
-                    <View style={styles.navButtonInner}>
-                      <Ionicons name="chevron-forward" size={24} color="#fff" />
-                    </View>
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
-
-            {/* Info on image */}
-            <View style={styles.imageInfo}>
-              <View style={styles.nameAgeRow}>
-                <Text style={styles.name} numberOfLines={1}>{profile.first_name}</Text>
-                <Text style={styles.age}>{profile.age}</Text>
-                {profile.is_verified && (
-                  <Ionicons name="checkmark-circle" size={20} color="#4ECDC4" />
-                )}
-              </View>
-              
-              <View style={styles.locationRow}>
-                <Ionicons name="location" size={13} color="rgba(255,255,255,0.9)" />
-                <Text style={styles.locationText} numberOfLines={1}>{getDistanceText()}</Text>
-              </View>
+          {/* Photo Indicators */}
+          {photos.length > 1 && (
+            <View style={styles.photoIndicators}>
+              {photos.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.photoIndicator,
+                    index === currentPhotoIndex && styles.photoIndicatorActive,
+                  ]}
+                />
+              ))}
             </View>
-          </View>
+          )}
 
-          {/* Bottom info */}
+          {/* Photo Navigation Buttons */}
+          {photos.length > 1 && (
+            <>
+              {currentPhotoIndex > 0 && (
+                <TouchableOpacity
+                  style={[styles.photoNavButton, styles.photoNavLeft]}
+                  onPress={prevPhoto}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.navButtonBg}>
+                    <Ionicons name="chevron-back" size={24} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              )}
+              {currentPhotoIndex < photos.length - 1 && (
+                <TouchableOpacity
+                  style={[styles.photoNavButton, styles.photoNavRight]}
+                  onPress={nextPhoto}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.navButtonBg}>
+                    <Ionicons name="chevron-forward" size={24} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+
+          {/* Swipe Indicators */}
+          <Animated.View style={[styles.swipeIndicator, styles.likeIndicator, { opacity: likeOpacity }]}>
+            <Text style={styles.likeText}>LIKE</Text>
+          </Animated.View>
+          <Animated.View style={[styles.swipeIndicator, styles.nopeIndicator, { opacity: nopeOpacity }]}>
+            <Text style={styles.nopeText}>NOPE</Text>
+          </Animated.View>
+
+          {/* User Info */}
           <View style={styles.infoContainer}>
-            {profile.bio ? (
-              <Text style={styles.bio} numberOfLines={2}>{profile.bio}</Text>
-            ) : null}
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>
+                {profile.first_name}{age ? `, ${age}` : ''}
+              </Text>
+              {profile.is_verified && (
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={22} color="#3B82F6" />
+                </View>
+              )}
+            </View>
+
+            <View style={styles.locationRow}>
+              <Ionicons name="location" size={16} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.location}>{getDistanceText()}</Text>
+            </View>
+
+            {profile.bio && (
+              <Text style={styles.bio} numberOfLines={2}>
+                {profile.bio}
+              </Text>
+            )}
 
             {profile.interests && profile.interests.length > 0 && (
               <View style={styles.interestsContainer}>
                 {profile.interests.slice(0, 3).map((interest, index) => (
                   <View key={index} style={styles.interestTag}>
-                    <Text style={styles.interestText} numberOfLines={1}>{interest}</Text>
+                    <Text style={styles.interestText}>{interest}</Text>
                   </View>
                 ))}
                 {profile.interests.length > 3 && (
-                  <View style={styles.moreTag}>
-                    <Text style={styles.moreTagText}>+{profile.interests.length - 3}</Text>
+                  <View style={styles.interestTag}>
+                    <Text style={styles.interestText}>+{profile.interests.length - 3}</Text>
                   </View>
                 )}
               </View>
@@ -297,196 +255,162 @@ export function SwipeCard({ profile, onSwipe, onPress }: SwipeCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
+    width: screenWidth - 24,
+    height: CARD_HEIGHT,
     borderRadius: 20,
-    ...shadows.large,
+    backgroundColor: colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
     overflow: 'hidden',
   },
-  cardContent: {
+  cardTouchable: {
     flex: 1,
-  },
-  imageContainer: {
-    flex: 0.75,
-    position: 'relative',
-    backgroundColor: colors.border,
   },
   image: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
   },
-  imageGradient: {
+  gradient: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: '40%',
+    height: '60%',
   },
   photoIndicators: {
     position: 'absolute',
-    top: 10,
+    top: 12,
     left: 12,
     right: 12,
     flexDirection: 'row',
     gap: 4,
   },
-  indicator: {
+  photoIndicator: {
     flex: 1,
-    height: 3,
-    borderRadius: 2,
+    height: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    maxWidth: 50,
+    borderRadius: 2,
   },
-  activeIndicator: {
+  photoIndicatorActive: {
     backgroundColor: '#fff',
   },
-  navButton: {
+  photoNavButton: {
     position: 'absolute',
     top: '35%',
-    height: 50,
-    width: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  navButtonInner: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    bottom: '35%',
+    width: 60,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  prevButton: {
-    left: 8,
+  photoNavLeft: {
+    left: 0,
+    paddingLeft: 12,
   },
-  nextButton: {
-    right: 8,
+  photoNavRight: {
+    right: 0,
+    paddingRight: 12,
   },
-  imageInfo: {
+  navButtonBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  swipeIndicator: {
     position: 'absolute',
-    bottom: 12,
-    left: 14,
-    right: 14,
+    top: 60,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 3,
   },
-  nameAgeRow: {
+  likeIndicator: {
+    right: 24,
+    borderColor: '#22C55E',
+    transform: [{ rotate: '15deg' }],
+  },
+  nopeIndicator: {
+    left: 24,
+    borderColor: '#EF4444',
+    transform: [{ rotate: '-15deg' }],
+  },
+  likeText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#22C55E',
+    letterSpacing: 2,
+  },
+  nopeText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#EF4444',
+    letterSpacing: 2,
+  },
+  infoContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    paddingBottom: 24,
+  },
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 6,
   },
   name: {
-    fontSize: isSmallDevice ? 24 : 28,
+    fontSize: 28,
     fontWeight: '700',
     color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-    maxWidth: '60%',
+    textShadowRadius: 4,
   },
-  age: {
-    fontSize: isSmallDevice ? 22 : 24,
-    color: 'rgba(255,255,255,0.95)',
-    fontWeight: '400',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+  verifiedBadge: {
+    marginLeft: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 2,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    gap: 4,
+    marginBottom: 10,
   },
-  locationText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '500',
-    flex: 1,
-  },
-  infoContainer: {
-    flex: 0.25,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    justifyContent: 'center',
+  location: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginLeft: 4,
   },
   bio: {
-    fontSize: 14,
-    color: colors.text,
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.9)',
     lineHeight: 20,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   interestsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 8,
   },
   interestTag: {
-    backgroundColor: `${colors.primary}15`,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    maxWidth: 100,
-  },
-  moreTag: {
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   interestText: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  moreTagText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  // Swipe badges - compact for mobile
-  swipeBadge: {
-    position: 'absolute',
-    top: 50,
-    zIndex: 1000,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 2,
-  },
-  likeBadge: {
-    left: 16,
-    backgroundColor: 'rgba(255, 107, 138, 0.2)',
-    borderColor: colors.like,
-    transform: [{ rotate: '-12deg' }],
-  },
-  passBadge: {
-    right: 16,
-    backgroundColor: 'rgba(168, 163, 179, 0.2)',
-    borderColor: colors.pass,
-    transform: [{ rotate: '12deg' }],
-  },
-  superlikeBadge: {
-    alignSelf: 'center',
-    left: '50%',
-    marginLeft: -50,
-    backgroundColor: 'rgba(155, 93, 229, 0.2)',
-    borderColor: colors.superlike,
-  },
-  likeBadgeText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.like,
-    letterSpacing: 1,
-  },
-  passBadgeText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.pass,
-    letterSpacing: 1,
-  },
-  superlikeBadgeText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.superlike,
-    letterSpacing: 1,
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '500',
   },
 });

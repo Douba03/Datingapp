@@ -1,63 +1,103 @@
 import React, { useEffect, useRef } from 'react';
-import { 
-  Modal, 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Dimensions, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
   Image,
+  TouchableOpacity,
   Animated,
-  Easing,
-  ScrollView,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, shadows } from '../theme/colors';
+import { Ionicons } from '@expo/vector-icons';
+import { colors } from '../theme/colors';
 
 interface MatchModalProps {
   visible: boolean;
-  matchedUserName: string;
-  matchedUserPhoto?: string;
-  onContinue: () => void;
-  onSendMessage?: () => void;
+  matchedUser: { name: string; photo?: string } | null;
   isSuperLike?: boolean;
+  onContinue: () => void;
+  onMessage: () => void;
 }
 
 const { width, height } = Dimensions.get('window');
-const isSmallDevice = width < 375;
 
-export function MatchModal({ 
-  visible, 
-  matchedUserName, 
-  matchedUserPhoto,
-  onContinue,
-  onSendMessage,
-  isSuperLike = false
-}: MatchModalProps) {
+export function MatchModal({ visible, matchedUser, isSuperLike, onContinue, onMessage }: MatchModalProps) {
   const scaleAnim = useRef(new Animated.Value(0)).current;
-  const heartAnim = useRef(new Animated.Value(1)).current;
+  const heartAnim1 = useRef(new Animated.Value(0)).current;
+  const heartAnim2 = useRef(new Animated.Value(0)).current;
+  const heartAnim3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
+      // Reset animations
       scaleAnim.setValue(0);
-      
-      // Modal entrance animation
+      heartAnim1.setValue(0);
+      heartAnim2.setValue(0);
+      heartAnim3.setValue(0);
+
+      // Main content animation
       Animated.spring(scaleAnim, {
         toValue: 1,
-        friction: 5,
+        friction: 6,
         tension: 100,
         useNativeDriver: true,
       }).start();
 
-      // Only the main heart pulses - subtle animation
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(heartAnim, { toValue: 1.08, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(heartAnim, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ])
-      ).start();
+      // Floating hearts animations
+      const animateHeart = (anim: Animated.Value, delay: number) => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(delay),
+            Animated.timing(anim, {
+              toValue: 1,
+              duration: 2000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(anim, {
+              toValue: 0,
+              duration: 0,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+      };
+
+      animateHeart(heartAnim1, 0);
+      animateHeart(heartAnim2, 700);
+      animateHeart(heartAnim3, 1400);
     }
   }, [visible]);
+
+  const getHeartStyle = (anim: Animated.Value, startX: number) => ({
+    opacity: anim.interpolate({
+      inputRange: [0, 0.3, 0.7, 1],
+      outputRange: [0, 1, 1, 0],
+    }),
+    transform: [
+      {
+        translateY: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -150],
+        }),
+      },
+      {
+        translateX: anim.interpolate({
+          inputRange: [0, 0.5, 1],
+          outputRange: [startX, startX + 20, startX - 10],
+        }),
+      },
+      {
+        scale: anim.interpolate({
+          inputRange: [0, 0.5, 1],
+          outputRange: [0.5, 1.2, 0.8],
+        }),
+      },
+    ],
+  });
+
+  if (!matchedUser) return null;
 
   return (
     <Modal
@@ -67,101 +107,79 @@ export function MatchModal({
       onRequestClose={onContinue}
     >
       <View style={styles.overlay}>
-        <Animated.View style={[styles.modalContainer, { transform: [{ scale: scaleAnim }] }]}>
-          {/* Top gradient */}
-          <LinearGradient
-            colors={isSuperLike ? [colors.superlike, colors.primary] : [colors.primary, colors.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.topBorder}
-          />
-          
-          <ScrollView 
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Main animated icon - only this one pulses */}
-            <View style={styles.iconContainer}>
-              <Animated.View style={[styles.iconCircle, { transform: [{ scale: heartAnim }] }]}>
-                <LinearGradient
-                  colors={isSuperLike ? [colors.superlike, '#B88AE8'] : [colors.primary, colors.primaryLight]}
-                  style={styles.iconGradient}
-                >
-                  <Text style={styles.iconEmoji}>{isSuperLike ? '⭐' : '💕'}</Text>
-                </LinearGradient>
-              </Animated.View>
-            </View>
+        <LinearGradient
+          colors={isSuperLike 
+            ? ['rgba(59, 130, 246, 0.95)', 'rgba(99, 102, 241, 0.95)'] 
+            : ['rgba(236, 72, 153, 0.95)', 'rgba(168, 85, 247, 0.95)']}
+          style={styles.gradient}
+        >
+          {/* Floating Hearts */}
+          <View style={styles.heartsContainer}>
+            <Animated.Text style={[styles.floatingHeart, getHeartStyle(heartAnim1, -40)]}>
+              💕
+            </Animated.Text>
+            <Animated.Text style={[styles.floatingHeart, getHeartStyle(heartAnim2, 40)]}>
+              ❤️
+            </Animated.Text>
+            <Animated.Text style={[styles.floatingHeart, getHeartStyle(heartAnim3, 0)]}>
+              💖
+            </Animated.Text>
+          </View>
 
-            {/* Title */}
-            <Text style={styles.title}>It's a Match! 🎉</Text>
-            
-            {/* Subtitle */}
+          <Animated.View style={[
+            styles.content,
+            { transform: [{ scale: scaleAnim }] }
+          ]}>
+            {/* Header */}
+            <Text style={styles.title}>
+              {isSuperLike ? '⭐ Super Match! ⭐' : "It's a Match! 💕"}
+            </Text>
             <Text style={styles.subtitle}>
-              {isSuperLike ? (
-                <><Text style={styles.matchName}>{matchedUserName}</Text> Super Liked You!</>
-              ) : (
-                <>You and <Text style={styles.matchName}>{matchedUserName}</Text> liked each other!</>
-              )}
+              You and {matchedUser.name} liked each other!
             </Text>
 
-            {/* Static emoji row - no animation */}
-            <View style={styles.emojiRow}>
-              <Text style={styles.emoji}>💕</Text>
-              <Text style={styles.emoji}>🥰</Text>
-              <Text style={styles.emoji}>💘</Text>
-              <Text style={styles.emoji}>😍</Text>
-              <Text style={styles.emoji}>💝</Text>
+            {/* Photo */}
+            <View style={styles.photoContainer}>
+              {matchedUser.photo ? (
+                <Image source={{ uri: matchedUser.photo }} style={styles.photo} />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Ionicons name="person" size={60} color="rgba(255,255,255,0.5)" />
+                </View>
+              )}
+              <View style={styles.heartBadge}>
+                <Text style={styles.heartBadgeText}>❤️</Text>
+              </View>
             </View>
 
-            {/* Photo */}
-            {matchedUserPhoto && (
-              <View style={styles.photoContainer}>
-                <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.photoBorder}>
-                  <Image source={{ uri: matchedUserPhoto }} style={styles.photo} resizeMode="cover" />
-                </LinearGradient>
-                <View style={styles.photoHeartBadge}>
-                  <Text style={styles.heartBadgeEmoji}>💕</Text>
-                </View>
-              </View>
-            )}
-
-            {/* Tips - static emojis */}
-            <View style={styles.tipsCard}>
-              <View style={styles.tipRow}>
-                <Text style={styles.tipEmoji}>💬</Text>
-                <Text style={styles.tipText}>Start a conversation!</Text>
-              </View>
-              <View style={styles.tipRow}>
-                <Text style={styles.tipEmoji}>✨</Text>
-                <Text style={styles.tipText}>Be genuine and friendly</Text>
-              </View>
-              <View style={styles.tipRow}>
-                <Text style={styles.tipEmoji}>🎯</Text>
-                <Text style={styles.tipText}>Check your Messages tab</Text>
-              </View>
+            {/* Celebration Emojis */}
+            <View style={styles.celebrationRow}>
+              <Text style={styles.celebrationEmoji}>🎉</Text>
+              <Text style={styles.celebrationEmoji}>💖</Text>
+              <Text style={styles.celebrationEmoji}>✨</Text>
+              <Text style={styles.celebrationEmoji}>💕</Text>
+              <Text style={styles.celebrationEmoji}>🎊</Text>
             </View>
 
             {/* Buttons */}
-            <View style={styles.buttonContainer}>
-              {onSendMessage && (
-                <TouchableOpacity style={styles.primaryButton} onPress={onSendMessage} activeOpacity={0.85}>
-                  <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.buttonGradient}>
-                    <Text style={styles.primaryButtonText}>💬 Send Message</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
-              
-              <TouchableOpacity style={styles.secondaryButton} onPress={onContinue} activeOpacity={0.85}>
-                <Text style={styles.secondaryButtonText}>
-                  {onSendMessage ? 'Keep Swiping →' : '✓ Continue'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.messageButton}
+              onPress={onMessage}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubble" size={20} color={colors.primary} />
+              <Text style={styles.messageButtonText}>Send a Message</Text>
+            </TouchableOpacity>
 
-            {/* Bottom text */}
-            <Text style={styles.celebrationText}>🎊 Congratulations! 🎊</Text>
-          </ScrollView>
-        </Animated.View>
+            <TouchableOpacity
+              style={styles.continueButton}
+              onPress={onContinue}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.continueButtonText}>Keep Swiping</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </LinearGradient>
       </View>
     </Modal>
   );
@@ -170,167 +188,124 @@ export function MatchModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(26, 22, 37, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
   },
-  modalContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    width: '100%',
-    maxWidth: 360,
-    maxHeight: height * 0.85,
-    overflow: 'hidden',
-    ...shadows.large,
-  },
-  topBorder: {
-    height: 5,
-  },
-  scrollContent: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  iconContainer: {
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  iconCircle: {
-    width: isSmallDevice ? 80 : 90,
-    height: isSmallDevice ? 80 : 90,
-    borderRadius: isSmallDevice ? 40 : 45,
-    overflow: 'hidden',
-    ...shadows.glow,
-  },
-  iconGradient: {
+  gradient: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 24,
   },
-  iconEmoji: {
-    fontSize: isSmallDevice ? 38 : 44,
+  heartsContainer: {
+    position: 'absolute',
+    bottom: '30%',
+    width: '100%',
+    alignItems: 'center',
+  },
+  floatingHeart: {
+    position: 'absolute',
+    fontSize: 30,
+  },
+  content: {
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
   },
   title: {
-    fontSize: isSmallDevice ? 24 : 28,
+    fontSize: 32,
     fontWeight: '800',
-    color: colors.primary,
+    color: '#fff',
     textAlign: 'center',
     marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
-    fontSize: 15,
-    color: colors.textSecondary,
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 10,
+    marginBottom: 32,
   },
-  matchName: {
-    fontWeight: '700',
-    color: colors.primary,
+  photoContainer: {
+    position: 'relative',
+    marginBottom: 24,
   },
-  emojiRow: {
+  photo: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    borderWidth: 4,
+    borderColor: '#fff',
+  },
+  photoPlaceholder: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#fff',
+  },
+  heartBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  heartBadgeText: {
+    fontSize: 24,
+  },
+  celebrationRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 14,
-    marginBottom: 16,
+    marginBottom: 32,
   },
-  emoji: {
-    fontSize: 20,
+  celebrationEmoji: {
+    fontSize: 28,
   },
-  photoContainer: {
-    marginBottom: 16,
-    position: 'relative',
-  },
-  photoBorder: {
-    width: isSmallDevice ? 100 : 110,
-    height: isSmallDevice ? 100 : 110,
-    borderRadius: isSmallDevice ? 50 : 55,
-    padding: 3,
-    ...shadows.glow,
-  },
-  photo: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 52,
-    backgroundColor: colors.border,
-  },
-  photoHeartBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: -5,
-    backgroundColor: '#fff',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...shadows.small,
-  },
-  heartBadgeEmoji: {
-    fontSize: 18,
-  },
-  tipsCard: {
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 14,
-    padding: 14,
-    width: '100%',
-    marginBottom: 16,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
-  },
-  tipRow: {
+  messageButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
-    gap: 10,
-  },
-  tipEmoji: {
-    fontSize: 16,
-  },
-  tipText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
-    lineHeight: 18,
-  },
-  buttonContainer: {
-    width: '100%',
-    gap: 10,
-  },
-  primaryButton: {
-    borderRadius: 14,
-    overflow: 'hidden',
-    ...shadows.glow,
-  },
-  buttonGradient: {
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 30,
+    width: '100%',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 12,
   },
-  primaryButtonText: {
-    color: '#fff',
+  messageButtonText: {
     fontSize: 16,
     fontWeight: '700',
-  },
-  secondaryButton: {
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  secondaryButtonText: {
     color: colors.primary,
-    fontSize: 15,
-    fontWeight: '600',
   },
-  celebrationText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 14,
-    fontStyle: 'italic',
+  continueButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    width: '100%',
+  },
+  continueButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
   },
 });
