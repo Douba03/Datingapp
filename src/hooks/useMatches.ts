@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase/client';
 import { Profile, Swipe, SwipeCounter } from '../types/user';
 import { useAuth } from './useAuth';
 import { calculateDistance, isWithinDistance } from '../utils/location';
+import { SWIPE_CONSTANTS } from '../constants/swipes';
 
 export function useMatches() {
   const { user, profile } = useAuth();
@@ -31,6 +32,14 @@ export function useMatches() {
     try {
       let counter: SwipeCounter | null = null;
 
+      // First, try to call the refill check function to refill expired timers
+      try {
+        await supabase.rpc('check_and_refill_swipes');
+        console.log('[useMatches] Checked for swipe refills');
+      } catch (refillError) {
+        console.warn('[useMatches] Could not check refills (function may not exist):', refillError);
+      }
+
       const { data, error } = await supabase
         .from('swipe_counters')
         .select('*')
@@ -38,10 +47,10 @@ export function useMatches() {
         .single();
 
       if (error || !data) {
-        console.warn('[useMatches] No swipe counter found; creating one with 10 remaining');
+        console.warn(`[useMatches] No swipe counter found; creating one with ${SWIPE_CONSTANTS.MAX_SWIPES} remaining`);
         const { data: created, error: createError } = await supabase
           .from('swipe_counters')
-          .insert({ user_id: user.id, remaining: 10 })
+          .insert({ user_id: user.id, remaining: SWIPE_CONSTANTS.MAX_SWIPES })
           .select()
           .single();
 
@@ -51,9 +60,47 @@ export function useMatches() {
           counter = created as unknown as SwipeCounter;
         }
       } else {
-        counter = data as unknown as SwipeCounter;
+        // Check if refill time has passed and we need to refill locally
+        const counterData = data as any;
+        if (counterData.next_refill_at && counterData.remaining <= 0) {
+          const refillTime = new Date(counterData.next_refill_at);
+          const now = new Date();
+          
+          if (now >= refillTime) {
+            console.log(`[useMatches] Refill time passed, refilling swipes to ${SWIPE_CONSTANTS.MAX_SWIPES}`);
+            // Refill the swipes
+            const { data: refilled, error: refillError } = await supabase
+              .from('swipe_counters')
+              .update({
+                remaining: SWIPE_CONSTANTS.MAX_SWIPES,
+                last_exhausted_at: null,
+                next_refill_at: null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('user_id', user.id)
+              .select()
+              .single();
+            
+            if (refillError) {
+              console.error('[useMatches] Failed to refill swipes:', refillError);
+              counter = counterData as SwipeCounter;
+            } else {
+              counter = refilled as unknown as SwipeCounter;
+              console.log('[useMatches] Swipes refilled successfully:', counter);
+            }
+          } else {
+            counter = counterData as SwipeCounter;
+            console.log('[useMatches] Swipes exhausted, refill at:', refillTime);
+          }
+        } else {
+          counter = counterData as SwipeCounter;
+        }
       }
 
+      console.log('[useMatches] Swipe counter:', { 
+        remaining: counter?.remaining, 
+        next_refill_at: counter?.next_refill_at 
+      });
       setSwipeCounter(counter);
     } catch (error) {
       console.error('Error fetching/creating swipe counter:', error);
@@ -166,14 +213,21 @@ export function useMatches() {
       });
 
       // Apply age filter
-      if (profile.preferences?.age_min) {
-        const ageMin = profile.preferences.age_min;
-        filteredProfiles = filteredProfiles.filter(p => p.age >= ageMin);
-      }
-      if (profile.preferences?.age_max) {
-        const ageMax = profile.preferences.age_max;
-        filteredProfiles = filteredProfiles.filter(p => p.age <= ageMax);
-      }
+      const ageMin = profile.preferences?.age_min ?? 18;
+      const ageMax = profile.preferences?.age_max ?? 100;
+      
+      console.log('[useMatches] Age preferences:', { ageMin, ageMax });
+      
+      const beforeAgeFilter = filteredProfiles.length;
+      filteredProfiles = filteredProfiles.filter(p => {
+        const profileAge = p.age || 0;
+        const withinRange = profileAge >= ageMin && profileAge <= ageMax;
+        if (!withinRange) {
+          console.log(`[useMatches] Filtering out ${p.first_name} (age: ${profileAge}) - outside range ${ageMin}-${ageMax}`);
+        }
+        return withinRange;
+      });
+      console.log(`[useMatches] Age filter: ${beforeAgeFilter} -> ${filteredProfiles.length} profiles`);
 
       // Apply relationship intent filter
       if (profile.preferences?.relationship_intent) {
@@ -248,9 +302,24 @@ export function useMatches() {
 
       console.log('[useMatches] Swipe result:', data);
 
-      // Update local swipe counter
+      // Update local swipe counter with remaining and next_refill_at
       if (data.remaining !== undefined) {
-        setSwipeCounter(prev => prev ? { ...prev, remaining: data.remaining } : null);
+        setSwipeCounter(prev => {
+          if (!prev) return null;
+          
+          const updated = { ...prev, remaining: data.remaining };
+          
+          // If swipes are exhausted, set the refill time to 12 hours from now
+          if (data.remaining <= 0) {
+            const refillTime = new Date();
+            refillTime.setHours(refillTime.getHours() + 12);
+            updated.next_refill_at = refillTime.toISOString();
+            updated.last_exhausted_at = new Date().toISOString();
+            console.log('[useMatches] Swipes exhausted, refill at:', updated.next_refill_at);
+          }
+          
+          return updated;
+        });
       }
 
       // Remove swiped profile from list

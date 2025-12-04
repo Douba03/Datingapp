@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/services/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '../../services/supabase/client';
+import { useAuth } from '../../hooks/useAuth';
 
 interface Warning {
   id: string;

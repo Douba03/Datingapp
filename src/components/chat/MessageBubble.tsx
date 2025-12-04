@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { ChatMessage } from '../../types/chat';
 import { useAuth } from '../../hooks/useAuth';
-import { colors } from '../theme/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -11,14 +11,26 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message, onImagePress }: MessageBubbleProps) {
   const { user } = useAuth();
-  const isOwn = message.sender_id === user?.id;
+  const { colors } = useTheme();
+  
+  // Memoize isOwn to prevent unnecessary re-renders and layout jumps
+  const isOwn = useMemo(() => {
+    return message.sender_id === user?.id;
+  }, [message.sender_id, user?.id]);
 
   return (
-    <View style={[styles.container, isOwn && styles.ownMessage]}>
-      <View style={[styles.bubble, isOwn ? styles.ownBubble : styles.otherBubble]}>
-        <Text style={[styles.text, isOwn ? styles.ownText : styles.otherText]}>
-          {message.body}
-        </Text>
+    <View style={[styles.container, isOwn ? styles.ownMessage : styles.otherMessage]}>
+      <View style={[
+        styles.bubble, 
+        isOwn 
+          ? [styles.ownBubble, { backgroundColor: colors.primary }] 
+          : [styles.otherBubble, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]
+      ]}>
+        {message.body ? (
+          <Text style={[styles.text, isOwn ? styles.ownText : { color: colors.text }]}>
+            {message.body}
+          </Text>
+        ) : null}
         
         {message.media && message.media.length > 0 && (
           <View style={styles.mediaContainer}>
@@ -30,7 +42,7 @@ export function MessageBubble({ message, onImagePress }: MessageBubbleProps) {
           </View>
         )}
         
-        <Text style={[styles.time, isOwn ? styles.ownTime : styles.otherTime]}>
+        <Text style={[styles.time, isOwn ? styles.ownTime : { color: colors.textSecondary }]}>
           {new Date(message.created_at).toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',
@@ -45,9 +57,14 @@ const styles = StyleSheet.create({
   container: {
     marginVertical: 4,
     paddingHorizontal: 16,
+    width: '100%',
+    flexDirection: 'column',
   },
   ownMessage: {
     alignItems: 'flex-end',
+  },
+  otherMessage: {
+    alignItems: 'flex-start',
   },
   bubble: {
     maxWidth: '80%',
@@ -56,11 +73,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   ownBubble: {
-    backgroundColor: colors.primary,
     borderBottomRightRadius: 4,
   },
   otherBubble: {
-    backgroundColor: colors.border,
     borderBottomLeftRadius: 4,
   },
   text: {
@@ -69,9 +84,6 @@ const styles = StyleSheet.create({
   },
   ownText: {
     color: '#fff',
-  },
-  otherText: {
-    color: colors.text,
   },
   mediaContainer: {
     marginTop: 8,
@@ -89,8 +101,5 @@ const styles = StyleSheet.create({
   ownTime: {
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'right',
-  },
-  otherTime: {
-    color: colors.textSecondary,
   },
 });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChatMatch } from '../../types/chat';
-import { colors } from '../theme/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface MatchCardProps {
   match: ChatMatch;
@@ -9,6 +9,8 @@ interface MatchCardProps {
 }
 
 export function MatchCard({ match, onPress }: MatchCardProps) {
+  const { colors } = useTheme();
+
   const formatLastMessage = () => {
     if (!match.last_message) return 'Start a conversation';
     
@@ -30,14 +32,17 @@ export function MatchCard({ match, onPress }: MatchCardProps) {
   };
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress}>
+    <TouchableOpacity 
+      style={[styles.container, { backgroundColor: colors.surface, borderBottomColor: colors.border }]} 
+      onPress={onPress}
+    >
       <View style={styles.avatarContainer}>
         <Image
           source={{ uri: match.other_user.photos[0] }}
           style={styles.avatar}
         />
         {match.unread_count > 0 && (
-          <View style={styles.unreadBadge}>
+          <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
             <Text style={styles.unreadText}>{match.unread_count}</Text>
           </View>
         )}
@@ -45,12 +50,12 @@ export function MatchCard({ match, onPress }: MatchCardProps) {
 
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.name}>{match.other_user.first_name}</Text>
-          <Text style={styles.age}>{match.other_user.age}</Text>
-          <Text style={styles.time}>{formatLastMessageTime()}</Text>
+          <Text style={[styles.name, { color: colors.text }]}>{match.other_user.first_name}</Text>
+          <Text style={[styles.age, { color: colors.textSecondary }]}>{match.other_user.age}</Text>
+          <Text style={[styles.time, { color: colors.textSecondary }]}>{formatLastMessageTime()}</Text>
         </View>
         
-        <Text style={styles.lastMessage} numberOfLines={1}>
+        <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
           {formatLastMessage()}
         </Text>
       </View>
@@ -62,9 +67,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     padding: 16,
-    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   avatarContainer: {
     position: 'relative',
@@ -79,7 +82,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -5,
     right: -5,
-    backgroundColor: colors.primary,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -103,21 +105,17 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: colors.text,
     marginRight: 8,
   },
   age: {
     fontSize: 14,
-    color: colors.textSecondary,
     marginRight: 8,
   },
   time: {
     fontSize: 12,
-    color: colors.textSecondary,
     marginLeft: 'auto',
   },
   lastMessage: {
     fontSize: 14,
-    color: colors.textSecondary,
   },
 });

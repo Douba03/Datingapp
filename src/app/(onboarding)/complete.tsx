@@ -3,142 +3,97 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   Platform,
   Animated,
   Easing,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Button } from '../../components/ui/Button';
+import { TouchableOpacity } from 'react-native';
 import { colors } from '../../components/theme/colors';
 import { useAuth } from '../../hooks/useAuth';
 import { useOnboarding } from '../../contexts/OnboardingContext';
-import { useProfile } from '../../hooks/useProfile';
 import { supabase } from '../../services/supabase/client';
 
 export default function CompleteScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, refreshProfile } = useAuth();
   const { data: onboardingData, resetData } = useOnboarding();
-  const { createProfile } = useProfile();
   const [saving, setSaving] = useState(false);
   
-  // Animation values
-  const flyAnimation = useRef(new Animated.Value(0)).current;
-  const shakeAnimation = useRef(new Animated.Value(0)).current;
-  const launchX = useRef(new Animated.Value(0)).current;
-  const launchY = useRef(new Animated.Value(0)).current;
-  const scaleAnimation = useRef(new Animated.Value(1)).current;
+  // Animations
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const confettiAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Flying animation (up and down)
-    Animated.loop(
+    // Entry animations
       Animated.sequence([
-        Animated.timing(flyAnimation, {
-          toValue: -20,
-          duration: 1500,
-          easing: Easing.inOut(Easing.sin),
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 6,
           useNativeDriver: true,
         }),
-        Animated.timing(flyAnimation, {
-          toValue: 0,
-          duration: 1500,
-          easing: Easing.inOut(Easing.sin),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
           useNativeDriver: true,
         }),
-      ])
-    ).start();
+      ]),
+      Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ),
+    ]).start();
 
-    // Shake animation (backfire/rumble effect)
+    // Confetti animation
     Animated.loop(
       Animated.sequence([
-        Animated.timing(shakeAnimation, {
-          toValue: 2,
-          duration: 50,
+        Animated.timing(confettiAnim, {
+          toValue: 1,
+          duration: 2000,
           useNativeDriver: true,
         }),
-        Animated.timing(shakeAnimation, {
-          toValue: -2,
-          duration: 50,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shakeAnimation, {
+        Animated.timing(confettiAnim, {
           toValue: 0,
-          duration: 50,
+          duration: 0,
           useNativeDriver: true,
         }),
       ])
     ).start();
   }, []);
 
-  const triggerLaunchAnimation = () => {
-    Animated.parallel([
-      Animated.timing(launchX, {
-        toValue: 500, // Fly right
-        duration: 1000,
-        easing: Easing.in(Easing.exp),
-        useNativeDriver: true,
-      }),
-      Animated.timing(launchY, {
-        toValue: -1000, // Fly up
-        duration: 1000,
-        easing: Easing.in(Easing.exp),
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnimation, {
-        toValue: 0.5, // Get smaller as it flies away
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
   const handleComplete = async () => {
-    console.log('🚀 Let\'s Go button pressed! (test)');
-    triggerLaunchAnimation();
     setSaving(true);
-    
-    console.log('📋 Onboarding data:', onboardingData);
-    console.log('👤 Current user:', user?.id);
-    
-    // Set a timeout to prevent infinite loading
-    const timeout = setTimeout(() => {
-      console.error('❌ Operation timed out after 30 seconds');
-      setSaving(false);
-      Alert.alert(
-        'Timeout',
-        'The operation is taking too long. Please check your internet connection and try again.',
-        [{ text: 'OK' }]
-      );
-    }, 30000); // 30 seconds
     
     try {
       if (!user) {
-        console.error('❌ No user logged in');
-        clearTimeout(timeout);
-        setSaving(false);
         Alert.alert('Error', 'No user logged in. Please sign in again.');
+        setSaving(false);
         return;
       }
 
       if (!onboardingData) {
-        console.error('❌ No onboarding data found');
-        clearTimeout(timeout);
+        Alert.alert('Error', 'No onboarding data found.');
         setSaving(false);
-        Alert.alert('Error', 'No onboarding data found. Please complete the onboarding steps.');
         return;
       }
 
-      console.log('💾 Creating profile with optimized approach...');
-      
-      // Calculate age
       const calculatedAge = onboardingData.dateOfBirth ? 
         new Date().getFullYear() - new Date(onboardingData.dateOfBirth).getFullYear() : 25;
 
-      // Create profile data
       const profileData = {
         user_id: user.id,
         first_name: onboardingData.firstName || '',
@@ -155,7 +110,6 @@ export default function CompleteScreen() {
         age: calculatedAge,
       };
 
-      // Create preferences data
       const preferencesData = {
         user_id: user.id,
         seeking_genders: onboardingData.seekingGenders || [],
@@ -165,180 +119,153 @@ export default function CompleteScreen() {
         relationship_intent: onboardingData.relationshipIntent || 'casual',
       };
 
-      console.log('📋 Profile data:', profileData);
-      console.log('📋 Preferences data:', preferencesData);
-
-      // Insert/update profile
-      const { data: profileResult, error: profileError } = await supabase
+      const { error: profileError } = await supabase
         .from('profiles')
         .upsert(profileData, { 
           onConflict: 'user_id',
           ignoreDuplicates: false 
-        })
-        .select()
-        .single();
+        });
 
       if (profileError) {
-        console.error('❌ Profile error:', profileError);
-        clearTimeout(timeout);
-        setSaving(false);
         Alert.alert('Error', `Failed to save profile: ${profileError.message}`);
+        setSaving(false);
         return;
       }
 
-      // Insert/update preferences
-      const { data: prefsResult, error: prefsError } = await supabase
+      const { error: prefsError } = await supabase
         .from('preferences')
         .upsert(preferencesData, { 
           onConflict: 'user_id',
           ignoreDuplicates: false 
-        })
-        .select()
-        .single();
+        });
 
       if (prefsError) {
-        console.error('❌ Preferences error:', prefsError);
-        clearTimeout(timeout);
-        setSaving(false);
         Alert.alert('Error', `Failed to save preferences: ${prefsError.message}`);
-        return;
-      }
-
-      const data = { profile: profileResult, preferences: prefsResult, success: true };
-
-      if (!data || !data.success) {
-        console.error('❌ No data returned from profile operation or operation failed');
-        clearTimeout(timeout);
         setSaving(false);
-        Alert.alert('Error', 'No data returned from profile operation');
         return;
       }
 
-      console.log('✅ Profile operation successful:', data);
-      
-      // Clear the timeout since operation succeeded
-      clearTimeout(timeout);
-      
-      // Wait a moment for the profile to be saved
-      console.log('⏳ Waiting for profile to be saved...');
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Refresh the profile data in useAuth
-      console.log('🔄 Refreshing profile data...');
       await refreshProfile();
       
-      console.log('🎉 Navigating to package selection...');
       router.push('/(onboarding)/package-selection');
     } catch (error: any) {
-      console.error('❌ Error completing onboarding:', error);
-      clearTimeout(timeout);
-      Alert.alert(
-        'Error', 
-        `Failed to complete onboarding: ${error.message || 'Unknown error'}`,
-        [
-          { text: 'Try Again', onPress: () => setSaving(false) },
-          { text: 'Skip', onPress: () => router.replace('/(tabs)') }
-        ]
-      );
+      Alert.alert('Error', `Failed to complete: ${error.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
   };
 
-  // Debug: Log onboarding data when component renders
-  React.useEffect(() => {
-    console.log('[CompleteScreen] Component rendered');
-    console.log('[CompleteScreen] Onboarding data:', onboardingData);
-    console.log('[CompleteScreen] User:', user?.id);
-    console.log('[CompleteScreen] Saving state:', saving);
-  }, [onboardingData, user, saving]);
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Success Icon with Animation */}
-        <View style={styles.iconContainer}>
-          <View style={styles.gradientCircle}>
-            <View style={styles.innerCircle}>
+    <LinearGradient
+      colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
+      style={styles.container}
+    >
+      <View style={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+        
+        {/* Success Icon */}
               <Animated.View
-                style={{
-                  transform: [
-                    { translateY: Animated.add(flyAnimation, launchY) },
-                    { translateX: Animated.add(shakeAnimation, launchX) },
-                    { scale: scaleAnimation }
-                  ],
-                }}
-              >
-                <Ionicons name="rocket" size={60} color="#fff" />
+          style={[
+            styles.iconContainer,
+            {
+              transform: [{ scale: scaleAnim }],
+              opacity: fadeAnim,
+            }
+          ]}
+        >
+          <LinearGradient
+            colors={[colors.success, '#34D399']}
+            style={styles.iconGradient}
+          >
+            <Ionicons name="checkmark" size={64} color="#fff" />
+          </LinearGradient>
+          
+          {/* Animated ring */}
+          <Animated.View 
+            style={[
+              styles.ring,
+              { transform: [{ rotate: spin }] }
+            ]}
+          />
+          
+          {/* Decorative elements */}
+          <View style={[styles.decorCircle, styles.circle1]} />
+          <View style={[styles.decorCircle, styles.circle2]} />
+          <View style={[styles.decorCircle, styles.circle3]} />
               </Animated.View>
-            </View>
-          </View>
-        </View>
 
         {/* Title */}
-        <View style={styles.titleSection}>
+        <Animated.View style={[styles.titleSection, { opacity: fadeAnim }]}>
           <Text style={styles.title}>You're all set!</Text>
           <Text style={styles.subtitle}>
-            Your profile is ready. Let's find your perfect match!
+            Your Mali Match profile is ready.{'\n'}Let's find your perfect match!
           </Text>
-        </View>
+        </Animated.View>
 
-        {/* Profile Summary */}
-        <View style={styles.summarySection}>
-          <SummaryItem icon="person" label="Profile created" />
-          <SummaryItem icon="images" label="Photos added" />
-          <SummaryItem icon="heart" label="Interests selected" />
-          <SummaryItem icon="settings" label="Preferences set" />
-        </View>
+        {/* Summary Cards */}
+        <Animated.View style={[styles.summarySection, { opacity: fadeAnim }]}>
+          <SummaryItem icon="person" label="Profile created" color="#FF6B9D" />
+          <SummaryItem icon="images" label="Photos added" color="#4ECDC4" />
+          <SummaryItem icon="heart" label="Interests selected" color="#FFB347" />
+          <SummaryItem icon="options" label="Preferences set" color="#9B59B6" />
+        </Animated.View>
 
-        {/* Next Steps */}
-        <View style={styles.nextStepsSection}>
-          <Text style={styles.nextStepsTitle}>What's next?</Text>
+        {/* What's Next */}
+        <Animated.View style={[styles.nextSection, { opacity: fadeAnim }]}>
+          <Text style={styles.nextTitle}>What's next?</Text>
           <View style={styles.stepsList}>
-            <StepItem
-              number="1"
-              text="Start swiping to find matches"
-            />
-            <StepItem
-              number="2"
-              text="Complete focus sessions to earn more swipes"
-            />
-            <StepItem
-              number="3"
-              text="Send messages to your matches"
-            />
+            <StepItem number="1" text="Start discovering amazing people" />
+            <StepItem number="2" text="Swipe right on profiles you like" />
+            <StepItem number="3" text="Match and start chatting!" />
           </View>
-        </View>
-      </View>
+        </Animated.View>
 
-      {/* Start Button */}
-      <View style={styles.footer}>
-        <Button
-          title={saving ? 'Setting up your profile...' : "Let's Go!"}
+        {/* CTA Button */}
+        <Animated.View style={[styles.ctaSection, { opacity: fadeAnim }]}>
+          <TouchableOpacity
+            style={styles.ctaButton}
           onPress={handleComplete}
           disabled={saving}
-          style={styles.startButton}
-        />
-        {saving && (
-          <ActivityIndicator
-            size="small"
-            color={colors.primary}
-            style={styles.loader}
-          />
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              {saving ? (
+                <>
+                  <ActivityIndicator size="small" color="#fff" />
+                  <Text style={styles.buttonText}>Setting up...</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="rocket" size={22} color="#fff" />
+                  <Text style={styles.buttonText}>Let's Go!</Text>
+                </>
         )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
       </View>
-    </SafeAreaView>
+    </LinearGradient>
   );
 }
 
-function SummaryItem({ icon, label }: { icon: string; label: string }) {
+function SummaryItem({ icon, label, color }: { icon: string; label: string; color: string }) {
   return (
     <View style={styles.summaryItem}>
-      <View style={styles.summaryIcon}>
-        <Ionicons name={icon as any} size={20} color={colors.primary} />
+      <View style={[styles.summaryIcon, { backgroundColor: `${color}15` }]}>
+        <Ionicons name={icon as any} size={20} color={color} />
       </View>
       <Text style={styles.summaryLabel}>{label}</Text>
-      <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+      <Ionicons name="checkmark-circle" size={22} color={colors.success} />
     </View>
   );
 }
@@ -357,96 +284,90 @@ function StepItem({ number, text }: { number: string; text: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     justifyContent: 'center',
-    maxWidth: 600,
-    width: '100%',
-    alignSelf: 'center',
   },
   iconContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 28,
     position: 'relative',
   },
-  gradientCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.success,
+  iconGradient: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: colors.success,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.4,
     shadowRadius: 16,
-    elevation: 8,
+    elevation: 12,
+  },
+  ring: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: `${colors.success}30`,
+    borderStyle: 'dashed',
   },
-  innerCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mainEmoji: {
-    fontSize: 60,
-    textAlign: 'center',
-  },
-  celebrationEmojis: {
+  decorCircle: {
     position: 'absolute',
-    width: 200,
-    height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 100,
+    backgroundColor: colors.success,
+    opacity: 0.2,
   },
-  emoji: {
-    position: 'absolute',
-    fontSize: 28,
-    opacity: 0.8,
+  circle1: {
+    width: 18,
+    height: 18,
+    top: -5,
+    right: '20%',
   },
-  emoji1: {
-    top: 20,
-    left: 10,
+  circle2: {
+    width: 12,
+    height: 12,
+    bottom: 10,
+    left: '22%',
   },
-  emoji2: {
-    top: 10,
-    right: 10,
-  },
-  emoji3: {
-    bottom: 20,
-    alignSelf: 'center',
+  circle3: {
+    width: 8,
+    height: 8,
+    top: 40,
+    right: '15%',
   },
   titleSection: {
-    marginBottom: 32,
+    marginBottom: 28,
     alignItems: 'center',
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 30,
+    fontWeight: '800',
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 10,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: colors.textSecondary,
-    lineHeight: 22,
+    lineHeight: 24,
     textAlign: 'center',
-    paddingHorizontal: 16,
   },
   summarySection: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
+    borderRadius: 20,
+    padding: 18,
+    gap: 14,
     marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   summaryItem: {
     flexDirection: 'row',
@@ -454,32 +375,34 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   summaryIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: `${colors.primary}15`,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
   summaryLabel: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: colors.text,
-    fontWeight: '500',
-  },
-  nextStepsSection: {
-    backgroundColor: `${colors.primary}10`,
-    borderRadius: 16,
-    padding: 16,
-  },
-  nextStepsTitle: {
-    fontSize: 18,
     fontWeight: '600',
+  },
+  nextSection: {
+    backgroundColor: `${colors.primary}08`,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: `${colors.primary}15`,
+  },
+  nextTitle: {
+    fontSize: 17,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: 16,
   },
   stepsList: {
-    gap: 12,
+    gap: 14,
   },
   stepItem: {
     flexDirection: 'row',
@@ -487,33 +410,46 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   stepNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   stepNumberText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '700',
   },
   stepText: {
     flex: 1,
     fontSize: 14,
-    color: colors.text,
+    color: colors.textSecondary,
     lineHeight: 20,
   },
-  footer: {
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 24,
+  ctaSection: {
     paddingTop: 8,
   },
-  startButton: {
-    paddingVertical: 16,
+  ctaButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  loader: {
-    marginTop: 12,
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 10,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

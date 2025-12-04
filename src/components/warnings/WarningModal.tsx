@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface WarningModalProps {
   visible: boolean;
@@ -20,7 +21,7 @@ export function WarningModal({ visible, reason, onAcknowledge }: WarningModalPro
           {/* Warning Icon */}
           <View style={styles.iconContainer}>
             <View style={styles.iconCircle}>
-              <Text style={styles.iconText}>⚠️</Text>
+              <Ionicons name="warning" size={50} color="#FF9500" />
             </View>
           </View>
 

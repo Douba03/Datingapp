@@ -70,8 +70,7 @@ export function useLocation() {
       // Get current position
       const locationResult = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
-        timeout: 10000,
-        maximumAge: 300000, // 5 minutes
+        mayShowUserSettingsDialog: true,
       });
 
       const coords: LocationType = {

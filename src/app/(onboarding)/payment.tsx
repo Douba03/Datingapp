@@ -38,7 +38,7 @@ export default function PaymentScreen() {
   useEffect(() => {
     if (user?.is_premium) {
       // User became premium, navigate to main app
-      Alert.alert('🎉 Welcome to Premium!', 'Enjoy all your premium features!', [
+      Alert.alert('Welcome to Premium!', 'Enjoy all your premium features!', [
         { text: 'Get Started', onPress: () => router.replace('/(tabs)') }
       ]);
     }
@@ -76,12 +76,13 @@ export default function PaymentScreen() {
           onPress: async () => {
             setSkipLoading(true);
             try {
-              // Directly update user to premium for testing
+              // Directly update user to premium for testing and mark onboarding as completed
               const { error } = await supabase
                 .from('users')
                 .update({
                   is_premium: true,
                   premium_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+                  onboarding_completed: true
                 })
                 .eq('id', user.id);
 
@@ -92,7 +93,7 @@ export default function PaymentScreen() {
                 return;
               }
 
-              console.log('[Payment] Successfully upgraded user to Premium');
+              console.log('[Payment] Successfully upgraded user to Premium and marked onboarding complete');
               await refreshProfile();
 
               // Navigate to main app

@@ -63,7 +63,8 @@ export function useProfileStats() {
         .eq('swiper_user_id', user.id);
 
       // Calculate match rate (matches / total swipes * 100)
-      const matchRate = swipeCount > 0 ? ((matchesCount || 0) / (swipeCount || 1)) * 100 : 0;
+      const safeSwipeCount = swipeCount ?? 0;
+      const matchRate = safeSwipeCount > 0 ? ((matchesCount || 0) / (safeSwipeCount || 1)) * 100 : 0;
 
       setStats({
         matches: matchesCount || 0,

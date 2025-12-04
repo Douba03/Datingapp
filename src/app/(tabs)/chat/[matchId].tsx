@@ -15,19 +15,21 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useChat } from '../../../hooks/useChat';
 import { useAuth } from '../../../hooks/useAuth';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { MessageBubble } from '../../../components/chat/MessageBubble';
 import { MessageInput } from '../../../components/chat/MessageInput';
 import { ProtectedRoute } from '../../../components/auth/ProtectedRoute';
 import { BlockUserModal } from '../../../components/chat/BlockUserModal';
 import { ReportUserModal } from '../../../components/chat/ReportUserModal';
-import { colors } from '../../../components/theme/colors';
 import { supabase } from '../../../services/supabase/client';
 import { usePhotoUpload } from '../../../hooks/usePhotoUpload';
+import { colors as staticColors } from '../../../components/theme/colors';
 
 function ChatScreen() {
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const { matches, sendMessage, markAsRead, loading, fetchMessages } = useChat();
   const [messages, setMessages] = useState<any[]>([]);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -257,10 +259,11 @@ function ChatScreen() {
         setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
       } else {
         console.log('[ChatScreen] Message sent successfully:', data);
-        // Replace temp message with the saved message immediately
+        // Replace temp message with the saved message - ensure sender_id is preserved
         setMessages(prev =>
           prev.map(msg => (msg.id === tempMessage.id ? { 
             ...data, 
+            sender_id: user.id, // Ensure sender_id is always set correctly
             sender: {
               user_id: user.id,
               first_name: (user as any).user_metadata?.first_name || 'You',
@@ -439,10 +442,10 @@ function ChatScreen() {
 
   if (loading || loadingMessages) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading chat...</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading chat...</Text>
         </View>
       </SafeAreaView>
     );
@@ -450,12 +453,12 @@ function ChatScreen() {
 
   if (!match) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>
           <Ionicons name="chatbubbles-outline" size={64} color={colors.textSecondary} />
-          <Text style={styles.errorText}>Match not found</Text>
+          <Text style={[styles.errorText, { color: colors.text }]}>Match not found</Text>
           <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-            <Text style={styles.backButtonText}>Go Back</Text>
+            <Text style={[styles.backButtonText, { color: colors.primary }]}>Go Back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -463,7 +466,7 @@ function ChatScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Block User Modal */}
       <BlockUserModal
         visible={blockModalVisible}
@@ -481,7 +484,7 @@ function ChatScreen() {
       />
 
       {/* Enhanced Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -491,13 +494,13 @@ function ChatScreen() {
             source={{ 
               uri: match.other_user.photos?.[0] || 'https://via.placeholder.com/40' 
             }}
-            style={styles.profileImage}
+            style={[styles.profileImage, { borderColor: colors.primary }]}
           />
           <View style={styles.profileInfo}>
-            <Text style={styles.matchName}>
+            <Text style={[styles.matchName, { color: colors.text }]}>
               {match.other_user.first_name}, {match.other_user.age}
             </Text>
-            <Text style={styles.onlineStatus}>
+            <Text style={[styles.onlineStatus, { color: colors.success }]}>
               {isTyping ? 'Typing...' : 'Online'}
             </Text>
           </View>
@@ -539,8 +542,8 @@ function ChatScreen() {
         ListEmptyComponent={() => (
           <View style={styles.emptyMessages}>
             <Ionicons name="chatbubbles-outline" size={48} color={colors.textSecondary} />
-            <Text style={styles.emptyText}>Start the conversation!</Text>
-            <Text style={styles.emptySubtext}>Say hi to {match.other_user.first_name}!</Text>
+            <Text style={[styles.emptyText, { color: colors.text }]}>Start the conversation!</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Say hi to {match.other_user.first_name}!</Text>
           </View>
         )}
       />
@@ -560,7 +563,7 @@ function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: staticColors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -570,16 +573,16 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: colors.textSecondary,
+    color: staticColors.textSecondary,
   },
   header: {
-    backgroundColor: colors.surface,
+    backgroundColor: staticColors.surface,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: staticColors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -601,7 +604,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 12,
     borderWidth: 2,
-    borderColor: colors.primary,
+    borderColor: staticColors.primary,
   },
   profileInfo: {
     flex: 1,
@@ -609,11 +612,11 @@ const styles = StyleSheet.create({
   matchName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: colors.text,
+    color: staticColors.text,
   },
   onlineStatus: {
     fontSize: 14,
-    color: colors.success,
+    color: staticColors.success,
     marginTop: 2,
   },
   moreButton: {
@@ -638,12 +641,12 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: colors.text,
+    color: staticColors.text,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: staticColors.textSecondary,
     marginTop: 8,
     textAlign: 'center',
   },
@@ -656,13 +659,13 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: colors.text,
+    color: staticColors.text,
     marginTop: 16,
     textAlign: 'center',
   },
   backButtonText: {
     fontSize: 16,
-    color: colors.primary,
+    color: staticColors.primary,
     fontWeight: 'bold',
     marginTop: 16,
   },

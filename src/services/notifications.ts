@@ -9,6 +9,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -197,7 +199,7 @@ class NotificationService {
    * Remove notification listener
    */
   removeNotificationListener(subscription: Notifications.Subscription): void {
-    Notifications.removeNotificationSubscription(subscription);
+    subscription.remove();
   }
 
   /**
@@ -345,6 +347,3 @@ class NotificationService {
 
 // Export singleton instance
 export const notificationService = new NotificationService();
-
-// Export types
-export type { NotificationData };

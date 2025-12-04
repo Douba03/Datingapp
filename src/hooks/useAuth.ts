@@ -153,8 +153,8 @@ export function useAuth() {
       if (authUser?.user) {
         console.log('[useAuth] Creating user data object...');
         
-        // Fetch user data from database first to get premium status
-        // Add timeout protection
+        // Fetch user data from database first to get premium status and onboarding_completed
+        // Increased timeout to ensure data loads properly on refresh
         let dbUser: any = null;
         try {
           const dbUserResult = await Promise.race([
@@ -164,10 +164,19 @@ export function useAuth() {
               .eq('id', userId)
               .single(),
             new Promise((resolve) => 
-              setTimeout(() => resolve({ data: null, error: null }), 5000)
+              setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 8000)
             ) as Promise<any>
           ]);
           dbUser = (dbUserResult as any)?.data || null;
+          const dbError = (dbUserResult as any)?.error;
+          if (dbError && dbError.message !== 'Timeout') {
+            console.warn('[useAuth] Error fetching user from db:', dbError);
+          }
+          console.log('[useAuth] Fetched user from database:', { 
+            found: !!dbUser, 
+            onboarding_completed: dbUser?.onboarding_completed,
+            is_premium: dbUser?.is_premium 
+          });
         } catch (err) {
           console.warn('[useAuth] Error or timeout fetching user data:', err);
           dbUser = null;

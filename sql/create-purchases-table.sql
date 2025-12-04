@@ -70,3 +70,7 @@ COMMENT ON TABLE purchases IS 'Tracks all premium subscription purchases';
 
 
 
+
+
+
+

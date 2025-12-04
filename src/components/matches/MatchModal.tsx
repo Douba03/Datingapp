@@ -1,104 +1,24 @@
-import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  Image,
-  TouchableOpacity,
-  Animated,
-  Dimensions,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
 
 interface MatchModalProps {
   visible: boolean;
-  matchedUser: { name: string; photo?: string } | null;
-  isSuperLike?: boolean;
+  matchedUserName: string;
+  matchedUserPhoto?: string;
   onContinue: () => void;
-  onMessage: () => void;
+  onSendMessage?: () => void;
+  isSuperLike?: boolean;
 }
 
-const { width, height } = Dimensions.get('window');
-
-export function MatchModal({ visible, matchedUser, isSuperLike, onContinue, onMessage }: MatchModalProps) {
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const heartAnim1 = useRef(new Animated.Value(0)).current;
-  const heartAnim2 = useRef(new Animated.Value(0)).current;
-  const heartAnim3 = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (visible) {
-      // Reset animations
-      scaleAnim.setValue(0);
-      heartAnim1.setValue(0);
-      heartAnim2.setValue(0);
-      heartAnim3.setValue(0);
-
-      // Main content animation
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 6,
-        tension: 100,
-        useNativeDriver: true,
-      }).start();
-
-      // Floating hearts animations
-      const animateHeart = (anim: Animated.Value, delay: number) => {
-        Animated.loop(
-          Animated.sequence([
-            Animated.delay(delay),
-            Animated.timing(anim, {
-              toValue: 1,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(anim, {
-              toValue: 0,
-              duration: 0,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
-      };
-
-      animateHeart(heartAnim1, 0);
-      animateHeart(heartAnim2, 700);
-      animateHeart(heartAnim3, 1400);
-    }
-  }, [visible]);
-
-  const getHeartStyle = (anim: Animated.Value, startX: number) => ({
-    opacity: anim.interpolate({
-      inputRange: [0, 0.3, 0.7, 1],
-      outputRange: [0, 1, 1, 0],
-    }),
-    transform: [
-      {
-        translateY: anim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -150],
-        }),
-      },
-      {
-        translateX: anim.interpolate({
-          inputRange: [0, 0.5, 1],
-          outputRange: [startX, startX + 20, startX - 10],
-        }),
-      },
-      {
-        scale: anim.interpolate({
-          inputRange: [0, 0.5, 1],
-          outputRange: [0.5, 1.2, 0.8],
-        }),
-      },
-    ],
-  });
-
-  if (!matchedUser) return null;
-
+export function MatchModal({ 
+  visible, 
+  matchedUserName, 
+  matchedUserPhoto,
+  onContinue,
+  onSendMessage,
+  isSuperLike = false
+}: MatchModalProps) {
   return (
     <Modal
       visible={visible}
@@ -107,205 +27,336 @@ export function MatchModal({ visible, matchedUser, isSuperLike, onContinue, onMe
       onRequestClose={onContinue}
     >
       <View style={styles.overlay}>
-        <LinearGradient
-          colors={isSuperLike 
-            ? ['rgba(59, 130, 246, 0.95)', 'rgba(99, 102, 241, 0.95)'] 
-            : ['rgba(236, 72, 153, 0.95)', 'rgba(168, 85, 247, 0.95)']}
-          style={styles.gradient}
-        >
-          {/* Floating Hearts */}
+        <View style={styles.modalContainer}>
+          {/* Gradient Top Border */}
+          <View style={styles.topBorder} />
+          
+          {/* Decorative Icons Background */}
           <View style={styles.heartsContainer}>
-            <Animated.Text style={[styles.floatingHeart, getHeartStyle(heartAnim1, -40)]}>
-              💕
-            </Animated.Text>
-            <Animated.Text style={[styles.floatingHeart, getHeartStyle(heartAnim2, 40)]}>
-              ❤️
-            </Animated.Text>
-            <Animated.Text style={[styles.floatingHeart, getHeartStyle(heartAnim3, 0)]}>
-              💖
-            </Animated.Text>
+            <View style={[styles.heartIconWrapper, styles.heart1]}>
+              <Ionicons name="heart" size={40} color="#FF6B9D" />
+            </View>
+            <View style={[styles.heartIconWrapper, styles.heart2]}>
+              <Ionicons name="heart" size={35} color="#FF8A65" />
+            </View>
+            <View style={[styles.heartIconWrapper, styles.heart3]}>
+              <Ionicons name="heart" size={30} color="#FF6B9D" />
+            </View>
+            <View style={[styles.heartIconWrapper, styles.heart4]}>
+              <Ionicons name="star" size={45} color="#FFD700" />
+            </View>
+            <View style={[styles.heartIconWrapper, styles.heart5]}>
+              <Ionicons name="sparkles" size={38} color="#FF6B9D" />
+            </View>
           </View>
 
-          <Animated.View style={[
-            styles.content,
-            { transform: [{ scale: scaleAnim }] }
-          ]}>
-            {/* Header */}
-            <Text style={styles.title}>
-              {isSuperLike ? '⭐ Super Match! ⭐' : "It's a Match! 💕"}
-            </Text>
-            <Text style={styles.subtitle}>
-              You and {matchedUser.name} liked each other!
-            </Text>
+          {/* Match Icon Badge */}
+          <View style={styles.iconContainer}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="heart" size={50} color="#FF6B9D" />
+            </View>
+          </View>
 
-            {/* Photo */}
+          {/* Title */}
+          <Text style={styles.title}>IT'S A MATCH!</Text>
+          
+          {/* Subtitle */}
+          <Text style={styles.subtitle}>
+            {isSuperLike ? (
+              <>
+                <Text style={styles.matchName}>{matchedUserName}</Text> Super Liked You!
+              </>
+            ) : (
+              <>
+                You and <Text style={styles.matchName}>{matchedUserName}</Text> liked each other!
+              </>
+            )}
+          </Text>
+
+          {/* Divider */}
+          <View style={styles.divider} />
+
+          {/* Profile Photo (if available) */}
+          {matchedUserPhoto && (
             <View style={styles.photoContainer}>
-              {matchedUser.photo ? (
-                <Image source={{ uri: matchedUser.photo }} style={styles.photo} />
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Ionicons name="person" size={60} color="rgba(255,255,255,0.5)" />
-                </View>
-              )}
-              <View style={styles.heartBadge}>
-                <Text style={styles.heartBadgeText}>❤️</Text>
+              <Image 
+                source={{ uri: matchedUserPhoto }} 
+                style={styles.photo}
+                resizeMode="cover"
+              />
+              <View style={styles.photoOverlay}>
+                <Ionicons name="heart" size={18} color="#fff" />
               </View>
             </View>
+          )}
 
-            {/* Celebration Emojis */}
-            <View style={styles.celebrationRow}>
-              <Text style={styles.celebrationEmoji}>🎉</Text>
-              <Text style={styles.celebrationEmoji}>💖</Text>
-              <Text style={styles.celebrationEmoji}>✨</Text>
-              <Text style={styles.celebrationEmoji}>💕</Text>
-              <Text style={styles.celebrationEmoji}>🎊</Text>
+          {/* Match Info Card */}
+          <View style={styles.infoCard}>
+            <View style={styles.infoRow}>
+              <Ionicons name="sparkles" size={20} color="#FF6B9D" style={styles.infoIcon} />
+              <Text style={styles.infoText}>Start a conversation and get to know each other!</Text>
             </View>
+            <View style={styles.infoRow}>
+              <Ionicons name="chatbubble" size={20} color="#FF6B9D" style={styles.infoIcon} />
+              <Text style={styles.infoText}>Be respectful and have fun chatting!</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Ionicons name="checkmark-circle" size={20} color="#FF6B9D" style={styles.infoIcon} />
+              <Text style={styles.infoText}>Your match is waiting in your Messages tab!</Text>
+            </View>
+          </View>
 
-            {/* Buttons */}
-            <TouchableOpacity
-              style={styles.messageButton}
-              onPress={onMessage}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="chatbubble" size={20} color={colors.primary} />
-              <Text style={styles.messageButtonText}>Send a Message</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.continueButton}
+          {/* Action Buttons */}
+          <View style={styles.buttonContainer}>
+            {onSendMessage && (
+              <TouchableOpacity 
+                style={styles.primaryButton}
+                onPress={onSendMessage}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="chatbubble" size={18} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.primaryButtonText}>Send Message</Text>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity 
+              style={styles.secondaryButton}
               onPress={onContinue}
               activeOpacity={0.8}
             >
-              <Text style={styles.continueButtonText}>Keep Swiping</Text>
+              <Ionicons 
+                name={onSendMessage ? "play-forward" : "checkmark"} 
+                size={18} 
+                color="#FF6B9D" 
+                style={{ marginRight: 8 }} 
+              />
+              <Text style={styles.secondaryButtonText}>
+                {onSendMessage ? 'Keep Swiping' : 'Continue'}
+              </Text>
             </TouchableOpacity>
-          </Animated.View>
-        </LinearGradient>
+          </View>
+
+          {/* Celebration Message */}
+          <Text style={styles.celebrationText}>
+            Congratulations on your new match!
+          </Text>
+        </View>
       </View>
     </Modal>
   );
 }
 
+const { width, height } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-  },
-  gradient: {
-    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    width: Math.min(width - 40, 450),
+    maxHeight: height * 0.85,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  topBorder: {
+    height: 6,
+    backgroundColor: '#FF6B9D',
   },
   heartsContainer: {
     position: 'absolute',
-    bottom: '30%',
-    width: '100%',
-    alignItems: 'center',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.15,
+    pointerEvents: 'none',
   },
-  floatingHeart: {
+  heartIconWrapper: {
     position: 'absolute',
-    fontSize: 30,
   },
-  content: {
+  heart1: {
+    top: 30,
+    left: 20,
+  },
+  heart2: {
+    top: 50,
+    right: 30,
+  },
+  heart3: {
+    top: 120,
+    left: 40,
+  },
+  heart4: {
+    top: 200,
+    right: 50,
+  },
+  heart5: {
+    top: 280,
+    left: 60,
+  },
+  iconContainer: {
     alignItems: 'center',
-    width: '100%',
-    maxWidth: 340,
+    marginTop: 32,
+    zIndex: 10,
+  },
+  iconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#FFE5EC',
+    borderWidth: 4,
+    borderColor: '#FF6B9D',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B9D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   title: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#fff',
+    color: '#FF6B9D',
     textAlign: 'center',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    marginTop: 24,
+    marginHorizontal: 20,
+    letterSpacing: 1.5,
+    textShadowColor: 'rgba(255, 107, 157, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   subtitle: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
-    marginBottom: 32,
+    marginTop: 12,
+    marginHorizontal: 24,
+    lineHeight: 24,
+  },
+  matchName: {
+    fontWeight: '700',
+    color: '#FF6B9D',
+    fontSize: 17,
+  },
+  divider: {
+    height: 2,
+    backgroundColor: '#FF6B9D',
+    marginHorizontal: 40,
+    marginTop: 20,
+    marginBottom: 20,
+    borderRadius: 1,
+    opacity: 0.3,
   },
   photoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
     position: 'relative',
-    marginBottom: 24,
   },
   photo: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     borderWidth: 4,
-    borderColor: '#fff',
+    borderColor: '#FF6B9D',
   },
-  photoPlaceholder: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: '#fff',
-  },
-  heartBadge: {
+  photoOverlay: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#fff',
+    bottom: -5,
+    right: '50%',
+    marginRight: -55,
+    backgroundColor: '#FF6B9D',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#ffffff',
+  },
+  infoCard: {
+    backgroundColor: '#FFF0F5',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF6B9D',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 2,
   },
-  heartBadgeText: {
-    fontSize: 24,
-  },
-  celebrationRow: {
+  infoRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 32,
-  },
-  celebrationEmoji: {
-    fontSize: 28,
-  },
-  messageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-    width: '100%',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
-  messageButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.primary,
+  infoIcon: {
+    marginRight: 12,
+    marginTop: 2,
   },
-  continueButton: {
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#444',
+    lineHeight: 20,
+  },
+  buttonContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    gap: 12,
+  },
+  primaryButton: {
+    backgroundColor: '#FF6B9D',
     paddingVertical: 16,
-    paddingHorizontal: 32,
-    width: '100%',
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    shadowColor: '#FF6B9D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  continueButtonText: {
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  secondaryButton: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FF6B9D',
+  },
+  secondaryButtonText: {
+    color: '#FF6B9D',
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.8)',
+    letterSpacing: 0.5,
+  },
+  celebrationText: {
+    fontSize: 13,
+    color: '#999',
     textAlign: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    fontStyle: 'italic',
   },
 });

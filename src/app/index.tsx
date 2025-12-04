@@ -23,8 +23,9 @@ const colors = {
 export default function IndexScreen() {
   const { user, profile, session, loading } = useAuth();
 
-  // Only block when we truly have no session/user yet
-  if (loading && !user && !session) {
+  // ALWAYS wait for loading to complete before making routing decisions
+  // This prevents redirecting to onboarding before user data is fetched
+  if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -32,30 +33,42 @@ export default function IndexScreen() {
     );
   }
 
+  // After loading is complete, check if we have a session/user
   if (user || session) {
-    // Check if user has completed onboarding by looking for a real profile
-    // A user has completed onboarding if they have a profile with:
-    // 1. A real first_name (not just email prefix)
-    // 2. Bio or photos (indicating they went through onboarding)
+    // Check if user has completed onboarding
+    // Priority 1: Check the onboarding_completed flag in user record
+    // Priority 2: Check if profile has real data (fallback for existing users)
     const emailPrefix = ((user?.email || session?.user?.email || '').split('@')[0]) || '';
-    const hasCompletedOnboarding = !!profile && (
+    
+    // Check onboarding_completed flag first (most reliable)
+    const onboardingFlagSet = user?.onboarding_completed === true;
+    
+    // Fallback: Check profile data for existing users who may not have the flag
+    const hasProfileData = !!profile && (
       (profile.first_name && profile.first_name !== emailPrefix) ||
       (profile.bio && profile.bio.length > 0) ||
       (profile.photos && profile.photos.length > 0) ||
       (profile.interests && profile.interests.length > 0)
     );
     
+    const hasCompletedOnboarding = onboardingFlagSet || hasProfileData;
+    
     console.log('[IndexScreen] Onboarding check:', {
+      hasUser: !!user,
+      hasSession: !!session,
+      loading,
+      onboardingFlagSet,
       hasProfile: !!profile,
       firstName: profile?.first_name,
       emailPrefix,
       hasBio: !!(profile?.bio && profile.bio.length > 0),
       hasPhotos: !!(profile?.photos && profile.photos.length > 0),
       hasInterests: !!(profile?.interests && profile.interests.length > 0),
+      hasProfileData,
       hasCompletedOnboarding
     });
     
-    if (hasCompletedOnboarding || session) {
+    if (hasCompletedOnboarding) {
       return <Redirect href="/(tabs)" />;
     } else {
       return <Redirect href="/(onboarding)/welcome" />;

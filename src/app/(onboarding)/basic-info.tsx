@@ -4,21 +4,22 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Button } from '../../components/ui/Button';
-import { colors } from '../../components/theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { colors } from '../../components/theme/colors';
 import { useOnboarding } from '../../contexts/OnboardingContext';
 
 export default function BasicInfoScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { updateData } = useOnboarding();
   const [firstName, setFirstName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
@@ -32,8 +33,8 @@ export default function BasicInfoScreen() {
   const [day, setDay] = useState('');
 
   const genderOptions = [
-    { value: 'man', label: 'Man', icon: 'male-outline' },
-    { value: 'woman', label: 'Woman', icon: 'female-outline' },
+    { value: 'man', label: 'Man', icon: 'male', color: '#4A90D9' },
+    { value: 'woman', label: 'Woman', icon: 'female', color: '#FF6B9D' },
   ];
 
   const calculateAge = (dob: Date) => {
@@ -52,7 +53,6 @@ export default function BasicInfoScreen() {
       const monthNum = parseInt(month, 10);
       const dayNum = parseInt(day, 10);
       
-      // Validate inputs
       if (yearNum < 1924 || yearNum > new Date().getFullYear()) {
         setAgeError('Please enter a valid year');
         return;
@@ -63,7 +63,6 @@ export default function BasicInfoScreen() {
         return;
       }
       
-      // Check days in month
       const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
       if (dayNum < 1 || dayNum > daysInMonth) {
         setAgeError(`Please enter a valid day (1-${daysInMonth})`);
@@ -72,7 +71,6 @@ export default function BasicInfoScreen() {
       
       const date = new Date(yearNum, monthNum - 1, dayNum);
       
-      // Check if date is in the future
       if (date > new Date()) {
         setAgeError('Date cannot be in the future');
         return;
@@ -83,26 +81,25 @@ export default function BasicInfoScreen() {
       setAgeError(null);
       
       if (age < 18) {
-        setAgeError('You must be at least 18 years old to use this app');
+        setAgeError('You must be at least 18 years old');
       }
     }
   }, [year, month, day]);
 
   const validateAndContinue = () => {
-    // Validation
     if (!firstName.trim()) {
       Alert.alert('Missing Information', 'Please enter your first name');
       return;
     }
 
     if (!dateOfBirth) {
-      Alert.alert('Missing Information', 'Please select your date of birth');
+      Alert.alert('Missing Information', 'Please enter your date of birth');
       return;
     }
 
     const age = calculateAge(dateOfBirth);
     if (age < 18) {
-      Alert.alert('Age Requirement', 'You must be at least 18 years old to use this app');
+      Alert.alert('Age Requirement', 'You must be at least 18 years old');
       return;
     }
 
@@ -111,12 +108,6 @@ export default function BasicInfoScreen() {
       return;
     }
 
-    if (gender === 'custom' && !customGender.trim()) {
-      Alert.alert('Missing Information', 'Please enter your gender identity');
-      return;
-    }
-
-    // Save data to context
     updateData({
       firstName,
       dateOfBirth: dateOfBirth.toISOString(),
@@ -124,52 +115,66 @@ export default function BasicInfoScreen() {
       customGender: gender === 'custom' ? customGender : undefined,
     });
     
-    console.log('[BasicInfo] Saved data, navigating to photos...');
     router.push('/(onboarding)/photos');
   };
 
-
   return (
-    <SafeAreaView style={styles.container}>
+    <LinearGradient
+      colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
+      style={styles.container}
+    >
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header with progress */}
-        <View style={styles.header}>
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
+          
+          {/* Progress Bar */}
           <View style={styles.progressContainer}>
-            <View style={[styles.progressBar, { width: '14%' }]} />
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={[styles.progressBar, { width: '14%' }]}
+            />
           </View>
+          
+          <Text style={styles.stepText}>Step 1 of 7</Text>
         </View>
 
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <View style={styles.content}>
             {/* Title */}
             <View style={styles.titleSection}>
-              <Text style={styles.title}>Let's start with the basics</Text>
+              <Ionicons name="hand-left" size={48} color="#FF6B9D" />
+              <Text style={styles.title}>Let's get to know you!</Text>
               <Text style={styles.subtitle}>
-                This information will be shown on your profile
+                This info will be shown on your profile
               </Text>
             </View>
 
             {/* First Name */}
             <View style={styles.inputSection}>
-              <Text style={styles.label}>First Name</Text>
+              <Text style={styles.label}>What's your first name?</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                <View style={styles.inputIconContainer}>
+                  <Ionicons name="person" size={20} color={colors.primary} />
+                </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your first name"
+                  placeholder="Enter your name"
                   placeholderTextColor={colors.textSecondary}
                   value={firstName}
                   onChangeText={setFirstName}
@@ -177,30 +182,25 @@ export default function BasicInfoScreen() {
                   autoFocus
                 />
               </View>
-              <Text style={styles.helperText}>
-                This is how it will appear on your profile
-              </Text>
             </View>
 
             {/* Date of Birth */}
             <View style={styles.inputSection}>
-              <Text style={styles.label}>Date of Birth</Text>
+              <Text style={styles.label}>When's your birthday? 🎂</Text>
               <View style={styles.dateInputContainer}>
                 <View style={styles.dateInputWrapper}>
-                  <Text style={styles.dateInputLabel}>Year</Text>
+                  <Text style={styles.dateInputLabel}>Day</Text>
                   <TextInput
                     style={styles.dateInput}
-                    placeholder="YYYY"
+                    placeholder="DD"
                     placeholderTextColor={colors.textSecondary}
-                    value={year}
+                    value={day}
                     onChangeText={(text) => {
                       const numeric = text.replace(/[^0-9]/g, '');
-                      if (numeric.length <= 4) {
-                        setYear(numeric);
-                      }
+                      if (numeric.length <= 2) setDay(numeric);
                     }}
                     keyboardType="numeric"
-                    maxLength={4}
+                    maxLength={2}
                   />
                 </View>
                 <View style={styles.dateInputWrapper}>
@@ -212,49 +212,47 @@ export default function BasicInfoScreen() {
                     value={month}
                     onChangeText={(text) => {
                       const numeric = text.replace(/[^0-9]/g, '');
-                      if (numeric.length <= 2) {
-                        setMonth(numeric);
-                      }
+                      if (numeric.length <= 2) setMonth(numeric);
                     }}
                     keyboardType="numeric"
                     maxLength={2}
                   />
                 </View>
                 <View style={styles.dateInputWrapper}>
-                  <Text style={styles.dateInputLabel}>Day</Text>
+                  <Text style={styles.dateInputLabel}>Year</Text>
                   <TextInput
                     style={styles.dateInput}
-                    placeholder="DD"
+                    placeholder="YYYY"
                     placeholderTextColor={colors.textSecondary}
-                    value={day}
+                    value={year}
                     onChangeText={(text) => {
                       const numeric = text.replace(/[^0-9]/g, '');
-                      if (numeric.length <= 2) {
-                        setDay(numeric);
-                      }
+                      if (numeric.length <= 4) setYear(numeric);
                     }}
                     keyboardType="numeric"
-                    maxLength={2}
+                    maxLength={4}
                   />
                 </View>
               </View>
-              {dateOfBirth && (
-                <View>
-                  <Text style={styles.helperText}>
-                    Age: {calculateAge(dateOfBirth)} years old
+              {dateOfBirth && !ageError && (
+                <View style={styles.ageDisplay}>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                  <Text style={styles.ageText}>
+                    {calculateAge(dateOfBirth)} years old
                   </Text>
+                </View>
+              )}
                   {ageError && (
-                    <Text style={styles.errorText}>
-                      ⚠️ {ageError}
-                    </Text>
-                  )}
+                <View style={styles.errorDisplay}>
+                  <Ionicons name="alert-circle" size={18} color={colors.error} />
+                  <Text style={styles.errorText}>{ageError}</Text>
                 </View>
               )}
             </View>
 
             {/* Gender */}
             <View style={styles.inputSection}>
-              <Text style={styles.label}>Gender</Text>
+              <Text style={styles.label}>I am a...</Text>
               <View style={styles.genderOptions}>
                 {genderOptions.map((option) => (
                   <TouchableOpacity
@@ -262,78 +260,103 @@ export default function BasicInfoScreen() {
                     style={[
                       styles.genderOption,
                       gender === option.value && styles.genderOptionSelected,
+                      gender === option.value && { borderColor: option.color }
                     ]}
                     onPress={() => setGender(option.value)}
+                    activeOpacity={0.7}
                   >
+                    <View style={[
+                      styles.genderIconContainer,
+                      { backgroundColor: `${option.color}15` }
+                    ]}>
                     <Ionicons 
                       name={option.icon as any} 
-                      size={28} 
-                      color={gender === option.value ? colors.primary : colors.textSecondary} 
+                        size={32} 
+                        color={gender === option.value ? option.color : colors.textSecondary} 
                     />
+                    </View>
                     <Text
                       style={[
                         styles.genderLabel,
-                        gender === option.value && styles.genderLabelSelected,
+                        gender === option.value && { color: option.color, fontWeight: '700' },
                       ]}
                     >
                       {option.label}
                     </Text>
+                    {gender === option.value && (
+                      <View style={[styles.checkBadge, { backgroundColor: option.color }]}>
+                        <Ionicons name="checkmark" size={14} color="#fff" />
+                      </View>
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>
-
-              {gender === 'custom' && (
-                <TextInput
-                  style={[styles.input, styles.customGenderInput]}
-                  placeholder="Enter your gender identity"
-                  placeholderTextColor={colors.textSecondary}
-                  value={customGender}
-                  onChangeText={setCustomGender}
-                  maxLength={50}
-                />
-              )}
             </View>
           </View>
         </ScrollView>
 
         {/* Continue Button */}
-        <View style={styles.footer}>
-          <Button
-            title="Continue"
-            onPress={validateAndContinue}
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+          <TouchableOpacity
             style={styles.continueButton}
-          />
+            onPress={validateAndContinue}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.buttonText}>Continue</Text>
+              <Ionicons name="arrow-forward" size={20} color="#fff" />
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   flex: {
     flex: 1,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   backButton: {
-    padding: 8,
-    marginBottom: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   progressContainer: {
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
+    height: 6,
+    backgroundColor: 'rgba(255, 107, 157, 0.15)',
+    borderRadius: 3,
+    marginBottom: 8,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 2,
+    borderRadius: 3,
+  },
+  stepText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
@@ -346,149 +369,192 @@ const styles = StyleSheet.create({
   },
   titleSection: {
     marginBottom: 32,
-    marginTop: 8,
+    alignItems: 'center',
+  },
+  emoji: {
+    fontSize: 48,
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: colors.text,
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
     lineHeight: 22,
+    textAlign: 'center',
   },
   inputSection: {
-    marginBottom: 24,
+    marginBottom: 28,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  inputIcon: {
-    marginRight: 8,
+  inputIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${colors.primary}10`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   input: {
     flex: 1,
-    paddingVertical: 16,
-    fontSize: 16,
+    paddingVertical: 18,
+    fontSize: 17,
     color: colors.text,
-  },
-  helperText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 8,
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#ef4444',
-    marginTop: 8,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   dateInputContainer: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8,
   },
   dateInputWrapper: {
     flex: 1,
   },
   dateInputLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.textSecondary,
     marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   dateInput: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 12,
-    paddingVertical: 14,
-    fontSize: 16,
+    paddingVertical: 16,
+    fontSize: 18,
     color: colors.text,
     textAlign: 'center',
+    fontWeight: '600',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  ageDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 6,
+  },
+  ageText: {
+    fontSize: 15,
+    color: colors.success,
+    fontWeight: '600',
+  },
+  errorDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 6,
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.error,
+    fontWeight: '600',
   },
   genderOptions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    gap: 16,
   },
   genderOption: {
     flex: 1,
-    minWidth: '45%',
     backgroundColor: colors.surface,
     borderWidth: 2,
     borderColor: colors.border,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
+    borderRadius: 20,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    gap: 8,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   genderOptionSelected: {
-    borderColor: colors.primary,
-    backgroundColor: `${colors.primary}15`,
+    backgroundColor: colors.surface,
+    shadowOpacity: 0.15,
+    elevation: 4,
   },
-  genderIcon: {
-    fontSize: 28,
+  genderIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   genderLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text,
-  },
-  genderLabelSelected: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  customGenderInput: {
-    marginTop: 12,
-  },
-  datePickerContainer: {
-    marginTop: 16,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  datePickerDone: {
-    marginTop: 12,
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  datePickerDoneText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    color: colors.text,
   },
-  webDatePicker: {
-    marginTop: 16,
-    gap: 12,
+  checkBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   footer: {
     paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingTop: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   continueButton: {
-    paddingVertical: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 10,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

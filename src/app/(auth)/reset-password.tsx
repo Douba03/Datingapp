@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { colors } from '../../components/theme/colors';
@@ -118,7 +119,7 @@ export default function ResetPasswordScreen() {
             </View>
           ) : (
             <View style={styles.successContainer}>
-              <Text style={styles.successIcon}>✅</Text>
+              <Ionicons name="checkmark-circle" size={60} color="#4CAF50" />
               <Text style={styles.successText}>Your password has been reset successfully</Text>
               <Button
                 title="Go to Login"

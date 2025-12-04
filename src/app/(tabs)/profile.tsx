@@ -3,39 +3,41 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Image,
   TouchableOpacity,
   Alert,
   RefreshControl,
+  Dimensions,
+  Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { useLocationUpdate } from '../../hooks/useLocationUpdate';
 import { useProfileStats } from '../../hooks/useProfileStats';
 import { useProfile } from '../../hooks/useProfile';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../services/supabase/client';
-import { Button } from '../../components/ui/Button';
 import { ProfileEditModal } from '../../components/profile/ProfileEditModal';
-import { ProfileSettings } from '../../components/profile/ProfileSettings';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
-import { PremiumBadge } from '../../components/premium/PremiumBadge';
 import { UpgradePrompt } from '../../components/premium/UpgradePrompt';
-import { SignOutModal } from '../../components/settings/SignOutModal';
-import { colors } from '../../components/theme/colors';
-import { lightTheme } from '../../components/theme/themes';
+import { colors as staticColors } from '../../components/theme/colors';
 import type { Profile as ProfileType } from '../../types/user';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 function ProfileScreen() {
   const { user, profile, session, signOut, updateProfile, refreshProfile } = useAuth();
   const params = useLocalSearchParams<{ viewUserId?: string; readonly?: string }>();
+  const insets = useSafeAreaInsets();
   const { updateLocation, loading: locationLoading } = useLocationUpdate();
   const { stats, loading: statsLoading, refreshStats } = useProfileStats();
   const { boostProfile } = useProfile();
+  const { colors } = useTheme();
   const router = useRouter();
-  const [editing, setEditing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [otherProfile, setOtherProfile] = useState<ProfileType | null>(null);
@@ -43,57 +45,14 @@ function ProfileScreen() {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [upgradeTrigger, setUpgradeTrigger] = useState<'likes' | 'boost'>('likes');
   const [boostLoading, setBoostLoading] = useState(false);
-  const [showSignOutModal, setShowSignOutModal] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
-  // Debug logging for profile data
-  React.useEffect(() => {
-    if (profile) {
-      console.log('[ProfileScreen] Profile loaded:', {
-        first_name: profile.first_name,
-        bio: profile.bio,
-        interests: profile.interests,
-        photos: profile.photos,
-        photosLength: profile.photos?.length || 0,
-        firstPhoto: profile.photos?.[0] || 'No photo'
-      });
-    }
-  }, [profile]);
-
-  const handleSignOut = () => {
-    setShowSignOutModal(true);
-  };
-
-  const performSignOut = async () => {
-    setSigningOut(true);
-    try {
-      await signOut();
-      setShowSignOutModal(false);
-      router.replace('/(auth)/login');
-    } catch (err) {
-      console.error('[Profile] Sign out error:', err);
-      setShowSignOutModal(false);
-      router.replace('/(auth)/login');
-    } finally {
-      setSigningOut(false);
-    }
-  };
-
-  const handleEditProfile = () => {
-    setShowEditModal(true);
-  };
+  const handleEditProfile = () => setShowEditModal(true);
 
   const handleSaveProfile = async (formData: any) => {
     try {
-      console.log('[Profile] Saving profile updates:', formData);
-      console.log('[Profile] Current user:', user?.id);
-      console.log('[Profile] Current profile:', profile?.user_id);
+      if (!user) throw new Error('No user logged in');
       
-      if (!user) {
-        throw new Error('No user logged in');
-      }
-      
-      // Map form data to Profile type
       const profileUpdates = {
         first_name: formData.first_name || profile?.first_name || '',
         bio: formData.bio || '',
@@ -104,84 +63,44 @@ function ProfileScreen() {
         updated_at: new Date().toISOString(),
       };
       
-      console.log('[Profile] Profile updates mapped:', profileUpdates);
-      
-      // Update profile in database using direct Supabase call
-      console.log('[Profile] Updating profile directly with Supabase...');
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('profiles')
         .update(profileUpdates)
-        .eq('user_id', user.id)
-        .select()
-        .single();
+        .eq('user_id', user.id);
       
-      if (error) {
-        console.error('[Profile] Database error:', error);
-        throw error;
-      }
+      if (error) throw error;
       
-      if (!data) {
-        console.error('[Profile] No data returned from update');
-        throw new Error('No data returned from profile update');
-      }
-      
-      console.log('[Profile] Profile updated successfully:', data);
-      
-      // Update preferences if they exist in formData
       if (formData.age_min !== undefined || formData.age_max !== undefined || 
           formData.max_distance_km !== undefined || formData.relationship_intent !== undefined) {
-        
-        const preferencesUpdates = {
+        await supabase
+          .from('preferences')
+          .update({
           age_min: formData.age_min,
           age_max: formData.age_max,
           max_distance_km: formData.max_distance_km,
           relationship_intent: formData.relationship_intent,
           updated_at: new Date().toISOString(),
-        };
-        
-        console.log('[Profile] Updating preferences:', preferencesUpdates);
-        
-        const { error: prefsError } = await supabase
-          .from('preferences')
-          .update(preferencesUpdates)
+          })
           .eq('user_id', user.id);
-        
-        if (prefsError) {
-          console.error('[Profile] Preferences update error:', prefsError);
-          // Don't throw, just log - preferences update is not critical
-        } else {
-          console.log('[Profile] Preferences updated successfully');
-        }
       }
       
-      // Refresh the profile data using useAuth hook
       await refreshProfile();
       await refreshStats();
-      
-      Alert.alert('Success', 'Profile updated successfully!');
+      Alert.alert('Success', 'Profile updated!');
     } catch (error: any) {
-      console.error('[Profile] Error updating profile:', error);
-      Alert.alert('Error', `Failed to update profile: ${error?.message || 'Unknown error'}`);
+      Alert.alert('Error', error?.message || 'Failed to update');
       throw error;
     }
   };
 
-
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
+      await refreshProfile();
       await refreshStats();
     } finally {
       setRefreshing(false);
     }
-  };
-
-  const handlePrivacySettings = () => {
-    Alert.alert('Privacy Settings', 'Privacy settings would open here');
-  };
-
-  const handleNotificationSettings = () => {
-    Alert.alert('Notification Settings', 'Notification settings would open here');
   };
 
   const handleBoost = async () => {
@@ -190,156 +109,39 @@ function ProfileScreen() {
       setShowUpgradePrompt(true);
       return;
     }
-
     setBoostLoading(true);
     try {
       const { error } = await boostProfile();
       if (error) {
         Alert.alert('Error', 'Failed to boost profile');
       } else {
-        Alert.alert('Success', 'Your profile has been boosted for 1 hour!');
-        await refreshProfile();
+        Alert.alert('🚀 Boosted!', 'Your profile is now 2x more visible for 1 hour!');
       }
-    } catch (error) {
-      console.error('[ProfileScreen] Error boosting profile:', error);
-      Alert.alert('Error', 'Failed to boost profile');
     } finally {
       setBoostLoading(false);
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (!user) {
-      Alert.alert('Error', 'No user logged in');
-      return;
-    }
-    Alert.alert(
-      'Delete Account',
-      'This will permanently delete your account and all your data. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('[Profile] Deleting account for user:', user.id);
-
-              // Delete swipes
-              const { error: swipesError } = await supabase
-                .from('swipes')
-                .delete()
-                .or(`swiper_user_id.eq.${user.id},target_user_id.eq.${user.id}`);
-              if (swipesError) console.warn('[Profile] Swipes delete:', swipesError.message);
-
-              // Delete matches (messages have ON DELETE CASCADE via match_id)
-              const { error: matchesError } = await supabase
-                .from('matches')
-                .delete()
-                .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`);
-              if (matchesError) console.warn('[Profile] Matches delete:', matchesError.message);
-
-              // Delete preferences
-              const { error: prefsError } = await supabase
-                .from('preferences')
-                .delete()
-                .eq('user_id', user.id);
-              if (prefsError) console.warn('[Profile] Preferences delete:', prefsError.message);
-
-              // Delete swipe counters
-              const { error: countersError } = await supabase
-                .from('swipe_counters')
-                .delete()
-                .eq('user_id', user.id);
-              if (countersError) console.warn('[Profile] Swipe counters delete:', countersError.message);
-
-              // Delete profile
-              const { error: profileError } = await supabase
-                .from('profiles')
-                .delete()
-                .eq('user_id', user.id);
-              if (profileError) console.warn('[Profile] Profile delete:', profileError.message);
-
-              await signOut();
-              Alert.alert('Account Deleted', 'Your account has been deleted.');
-              router.replace('/(auth)/login');
-            } catch (err: any) {
-              console.error('[Profile] Delete account error:', err);
-              Alert.alert('Deletion Error', err?.message || 'Failed to delete account.');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleUpdateLocation = async () => {
-    Alert.alert(
-      'Update Location',
-      'This will update your location to find matches nearby. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Update', 
-          onPress: async () => {
-            const { error } = await updateLocation();
-            if (error) {
-              Alert.alert('Error', 'Failed to update location. Please try again.');
-            } else {
-              Alert.alert('Success', 'Location updated successfully!');
-            }
-          }
-        },
-      ]
-    );
-  };
-
   const isReadonly = params?.readonly === '1' && params?.viewUserId && params.viewUserId !== user?.id;
 
-  // Load other user's profile when opened from chat in read-only mode
   React.useEffect(() => {
     const loadOther = async () => {
       if (!isReadonly || !params?.viewUserId) return;
       try {
         setOtherLoading(true);
-        const { data: dbProfile, error: pErr } = await supabase
+        const { data: dbProfile } = await supabase
           .from('profiles')
           .select('*')
           .eq('user_id', params.viewUserId as string)
           .single();
-        if (pErr) {
-          console.warn('[ProfileScreen] Other profile fetch error:', pErr.message);
-          setOtherProfile(null);
-          return;
-        }
+        if (dbProfile) {
         const { data: prefs } = await supabase
           .from('preferences')
           .select('*')
           .eq('user_id', params.viewUserId as string)
           .single();
-
-        const combined: ProfileType = {
-          user_id: dbProfile.user_id,
-          first_name: dbProfile.first_name,
-          date_of_birth: dbProfile.date_of_birth,
-          gender: dbProfile.gender,
-          custom_gender: dbProfile.custom_gender || undefined,
-          sexual_orientation: dbProfile.sexual_orientation || [],
-          bio: dbProfile.bio || '',
-          photos: dbProfile.photos || [],
-          primary_photo_idx: dbProfile.primary_photo_idx || 0,
-          location: dbProfile.location || undefined,
-          city: dbProfile.city || undefined,
-          country: dbProfile.country || undefined,
-          interests: dbProfile.interests || [],
-          created_at: dbProfile.created_at,
-          updated_at: dbProfile.updated_at,
-          is_verified: dbProfile.is_verified || false,
-          verification_photo: dbProfile.verification_photo || undefined,
-          age: dbProfile.age || 0,
-          preferences: prefs || undefined,
-        } as ProfileType;
-        setOtherProfile(combined);
+          setOtherProfile({ ...dbProfile, preferences: prefs } as ProfileType);
+        }
       } finally {
         setOtherLoading(false);
       }
@@ -347,127 +149,176 @@ function ProfileScreen() {
     loadOther();
   }, [isReadonly, params?.viewUserId]);
 
-  // Build a safe display profile: prefer loaded profile, else fallback from session while user/profile load
   const fallbackProfile: ProfileType | null = (!isReadonly && !profile && session) ? {
     user_id: session.user.id,
     first_name: (session.user.email || 'User').split('@')[0],
     date_of_birth: '1995-01-01',
     gender: 'prefer_not_to_say' as any,
-    sexual_orientation: [],
     bio: '',
     photos: [],
-    primary_photo_idx: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    is_verified: false,
+    interests: [],
     age: 0,
   } as unknown as ProfileType : null;
 
   const displayProfile = (isReadonly ? otherProfile : (profile || fallbackProfile)) as ProfileType | null;
+  const safeStats = stats || { matches: 0, likes: 0, superLikes: 0, matchRate: 0, swipeCount: 0 };
+  const photos = displayProfile?.photos || [];
+
   if (isReadonly && (otherLoading || !displayProfile)) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Text>Loading profile...</Text>
-      </SafeAreaView>
+      <View style={[styles.container, styles.loadingContainer]}>
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
     );
   }
-  const isViewingOther = Boolean(isReadonly);
-  const safeStats = stats || { matches: 0, likes: 0, superLikes: 0, matchRate: 0, swipeCount: 0 } as any;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <SignOutModal
-        visible={showSignOutModal}
-        onClose={() => setShowSignOutModal(false)}
-        onConfirm={performSignOut}
-        loading={signingOut}
-        colors={lightTheme}
-      />
-      
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView 
-        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.primary}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
       >
-        {/* No header - clean look */}
-
-        <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
-            {displayProfile?.photos && displayProfile.photos[0] ? (
-              <Image
-                source={{ uri: displayProfile.photos[0] }}
-                style={styles.avatar}
-                onError={(error) => {
-                  console.error('[Profile] Image load error:', error.nativeEvent.error);
-                  console.log('[Profile] Photo URI:', displayProfile.photos[0]);
-                }}
-                onLoad={() => {
-                  console.log('[Profile] Image loaded successfully:', displayProfile.photos[0]);
-                }}
+        {/* Hero Photo Section */}
+        <View style={styles.heroSection}>
+          {photos.length > 0 ? (
+            <>
+              <Image source={{ uri: photos[activePhotoIndex] }} style={styles.heroImage} />
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                style={styles.heroGradient}
               />
-            ) : (
-              <View style={[styles.avatar, styles.placeholderAvatar]}>
-                <Ionicons name="person" size={60} color={colors.textSecondary} />
+              {/* Photo Indicators */}
+              {photos.length > 1 && (
+                <View style={styles.photoIndicators}>
+                  {photos.map((_, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[styles.indicator, activePhotoIndex === index && styles.indicatorActive]}
+                      onPress={() => setActivePhotoIndex(index)}
+                    />
+                  ))}
               </View>
             )}
-            {!isReadonly && displayProfile?.is_verified && (
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedText}>✓</Text>
+              {/* Photo Navigation */}
+              <View style={styles.photoNavigation}>
+                <TouchableOpacity
+                  style={styles.photoNavButton}
+                  onPress={() => setActivePhotoIndex(prev => Math.max(0, prev - 1))}
+                  disabled={activePhotoIndex === 0}
+                >
+                  <View style={activePhotoIndex === 0 ? styles.navButtonDisabled : undefined} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.photoNavButton}
+                  onPress={() => setActivePhotoIndex(prev => Math.min(photos.length - 1, prev + 1))}
+                  disabled={activePhotoIndex === photos.length - 1}
+                >
+                  <View style={activePhotoIndex === photos.length - 1 ? styles.navButtonDisabled : undefined} />
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <View style={styles.noPhotoContainer}>
+              <Ionicons name="camera" size={60} color={colors.textSecondary} />
+              <Text style={styles.noPhotoText}>Add photos to your profile</Text>
+          </View>
+          )}
+
+          {/* Hero Content Overlay */}
+          <View style={styles.heroContent}>
+            <View style={styles.heroNameRow}>
+              <Text style={styles.heroName}>
+                {displayProfile?.first_name}{displayProfile?.age ? `, ${displayProfile.age}` : ''}
+              </Text>
+              {user?.is_premium && (
+                <View style={styles.premiumBadge}>
+                  <Ionicons name="diamond" size={14} color="#fff" />
+                  <Text style={styles.premiumBadgeText}>PRO</Text>
+            </View>
+              )}
+            </View>
+            {displayProfile?.city && (
+              <View style={styles.heroLocation}>
+                <Ionicons name="location" size={16} color="#fff" />
+                <Text style={styles.heroLocationText}>
+                  {displayProfile.city}{displayProfile.country ? `, ${displayProfile.country}` : ''}
+            </Text>
               </View>
             )}
           </View>
 
-          <View style={styles.infoContainer}>
-            <View style={styles.nameRow}>
-              <Text style={styles.name}>
-                {displayProfile?.first_name}{displayProfile?.age ? `, ${displayProfile.age}` : ''}
-              </Text>
-              {user?.is_premium && <PremiumBadge size="small" />}
-            </View>
-            <Text style={styles.meta}>
-              {displayProfile?.gender?.replace('_', ' ')}{displayProfile?.city ? ` • ${displayProfile.city}` : ''}{displayProfile?.country ? `, ${displayProfile.country}` : ''}
-            </Text>
-            
-            {displayProfile?.bio && (
-              <Text style={styles.bio}>{displayProfile.bio}</Text>
+          {/* Edit Button */}
+          {!isReadonly && (
+            <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+              <Ionicons name="pencil" size={20} color="#fff" />
+            </TouchableOpacity>
             )}
 
-            {/* location moved into meta line above for compactness */}
+          {/* Back Button for readonly */}
+          {isReadonly && (
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </View>
 
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
+        {/* Stats Cards */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.statIconBg}>
+              <Ionicons name="heart" size={20} color="#fff" />
+            </LinearGradient>
                 <Text style={styles.statNumber}>{safeStats.matches}</Text>
                 <Text style={styles.statLabel}>Matches</Text>
               </View>
-              <View style={styles.statItem}>
+          <View style={styles.statCard}>
+            <LinearGradient colors={['#FF6B6B', '#EE5A5A']} style={styles.statIconBg}>
+              <Ionicons name="flame" size={20} color="#fff" />
+            </LinearGradient>
                 <Text style={styles.statNumber}>{safeStats.likes}</Text>
                 <Text style={styles.statLabel}>Likes</Text>
               </View>
-              <View style={styles.statItem}>
+          <View style={styles.statCard}>
+            <LinearGradient colors={['#4ECDC4', '#44A08D']} style={styles.statIconBg}>
+              <Ionicons name="star" size={20} color="#fff" />
+            </LinearGradient>
                 <Text style={styles.statNumber}>{safeStats.superLikes}</Text>
                 <Text style={styles.statLabel}>Super Likes</Text>
               </View>
             </View>
             
-            <View style={styles.additionalStats}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{safeStats.matchRate}%</Text>
-                <Text style={styles.statLabel}>Match Rate</Text>
+        {/* Bio Section */}
+        {displayProfile?.bio && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>About Me</Text>
+            <Text style={styles.bioText}>{displayProfile.bio}</Text>
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{safeStats.swipeCount}</Text>
-                <Text style={styles.statLabel}>Swipes</Text>
-              </View>
-            </View>
+        )}
 
-            {/* People Who Liked You Button */}
+        {/* Interests Section */}
+        {displayProfile?.interests && displayProfile.interests.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Interests</Text>
+            <View style={styles.interestsGrid}>
+              {displayProfile.interests.map((interest, index) => (
+                <View key={index} style={styles.interestChip}>
+                  <Text style={styles.interestText}>{interest}</Text>
+              </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Quick Actions */}
+        {!isReadonly && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            
+            {/* See Who Liked You */}
             <TouchableOpacity
-              style={styles.likesYouButton}
+              style={styles.actionCard}
               onPress={() => {
                 if (user?.is_premium) {
                   router.push('/(tabs)/premium/likes-you');
@@ -477,412 +328,440 @@ function ProfileScreen() {
                 }
               }}
             >
-              <Ionicons name="heart" size={24} color={colors.primary} />
-              <View style={styles.likesYouTextContainer}>
-                <Text style={styles.likesYouTitle}>
-                  People Who Liked You
-                  {user?.is_premium && safeStats.likes > 0 && (
-                    <Text style={styles.likesCount}> ({safeStats.likes})</Text>
-                  )}
-                </Text>
-                <Text style={styles.likesYouSubtitle}>
-                  {user?.is_premium ? 'See your admirers' : 'Unlock with Premium'}
+              <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.actionIconBg}>
+                <Ionicons name="eye" size={24} color="#fff" />
+              </LinearGradient>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>See Who Liked You</Text>
+                <Text style={styles.actionSubtitle}>
+                  {user?.is_premium ? `${safeStats.likes} people like you` : 'Premium feature'}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            {/* Profile Boost Button */}
-            <TouchableOpacity
-              style={styles.boostButton}
-              onPress={handleBoost}
-              disabled={boostLoading}
-            >
-              <Ionicons name="rocket" size={24} color={user?.is_premium ? colors.success : colors.textSecondary} />
-              <View style={styles.boostTextContainer}>
-                <Text style={styles.boostTitle}>Profile Boost</Text>
-                <Text style={styles.boostSubtitle}>
-                  {user?.is_premium ? 'Get 2x more visibility' : 'Unlock with Premium'}
+            {/* Boost Profile */}
+            <TouchableOpacity style={styles.actionCard} onPress={handleBoost} disabled={boostLoading}>
+              <LinearGradient colors={['#9C27B0', '#7B1FA2']} style={styles.actionIconBg}>
+                <Ionicons name="rocket" size={24} color="#fff" />
+              </LinearGradient>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Boost Profile</Text>
+                <Text style={styles.actionSubtitle}>
+                  {user?.is_premium ? 'Get 2x more visibility' : 'Premium feature'}
                 </Text>
               </View>
-              {user?.is_premium && (
-                <Ionicons 
-                  name={boostLoading ? "hourglass" : "chevron-forward"} 
-                  size={24} 
-                  color={colors.success} 
-                />
-              )}
+              <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
-          </View>
-        </View>
 
-        {/* Interests Section */}
-        {displayProfile?.interests && displayProfile.interests.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="grid" size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Interests</Text>
-            </View>
-            <View style={styles.interestsContainer}>
-              {displayProfile.interests.map((interest, index) => (
-                <View key={index} style={styles.interestTag}>
-                  <Text style={styles.interestText}>{interest}</Text>
-                </View>
-              ))}
-            </View>
+            {/* Update Location */}
+            <TouchableOpacity
+              style={styles.actionCard} 
+              onPress={() => {
+                Alert.alert('Update Location', 'Update your location to find matches nearby?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Update', onPress: async () => {
+                    const { error } = await updateLocation();
+                    if (error) {
+                      Alert.alert('Error', 'Failed to update location');
+                    } else {
+                      Alert.alert('Success', 'Location updated!');
+                    }
+                  }}
+                ]);
+              }}
+              disabled={locationLoading}
+            >
+              <LinearGradient colors={['#2196F3', '#1976D2']} style={styles.actionIconBg}>
+                <Ionicons name="location" size={24} color="#fff" />
+              </LinearGradient>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Update Location</Text>
+                <Text style={styles.actionSubtitle}>
+                  {displayProfile?.city || 'Set your location'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
           </View>
         )}
 
+        {/* Preferences Summary */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="heart" size={20} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Preferences</Text>
-          </View>
-          <View style={styles.preferenceItem}>
-            <Text style={styles.preferenceLabel}>Looking for</Text>
-            <Text style={styles.preferenceValue}>
-              {displayProfile?.preferences?.relationship_intent?.replace('_', ' ') || 'Not set'}
+          <Text style={styles.sectionTitle}>Dating Preferences</Text>
+          <View style={styles.preferencesGrid}>
+            <View style={styles.prefItem}>
+              <Ionicons name="heart-outline" size={20} color={colors.primary} />
+              <Text style={styles.prefLabel}>Looking for</Text>
+              <Text style={styles.prefValue}>
+                {displayProfile?.preferences?.relationship_intent?.replace(/_/g, ' ') || 'Not set'}
             </Text>
           </View>
-          <View style={styles.preferenceItem}>
-            <Text style={styles.preferenceLabel}>Age range</Text>
-            <Text style={styles.preferenceValue}>
+            <View style={styles.prefItem}>
+              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+              <Text style={styles.prefLabel}>Age range</Text>
+              <Text style={styles.prefValue}>
               {displayProfile?.preferences?.age_min || 18} - {displayProfile?.preferences?.age_max || 100}
             </Text>
           </View>
-          <View style={styles.preferenceItem}>
-            <Text style={styles.preferenceLabel}>Maximum distance</Text>
-            <Text style={styles.preferenceValue}>
+            <View style={styles.prefItem}>
+              <Ionicons name="navigate-outline" size={20} color={colors.primary} />
+              <Text style={styles.prefLabel}>Distance</Text>
+              <Text style={styles.prefValue}>
               {displayProfile?.preferences?.max_distance_km || 50} km
             </Text>
           </View>
         </View>
+          </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="location" size={20} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Location</Text>
-          </View>
-          <View style={styles.preferenceItem}>
-            <Text style={styles.preferenceLabel}>Current location</Text>
-            <Text style={styles.preferenceValue}>
-              {displayProfile?.city || 'Unknown'}
-            </Text>
-          </View>
+        {/* Sign Out Button */}
+        {!isReadonly && (
           <TouchableOpacity 
-            style={styles.locationUpdateButton}
-            onPress={handleUpdateLocation}
-            disabled={locationLoading}
+            style={styles.signOutButton}
+            onPress={async () => {
+              // Use window.confirm for web, Alert for native
+              if (Platform.OS === 'web') {
+                const confirmed = window.confirm('Are you sure you want to sign out?');
+                if (confirmed) {
+                  await signOut();
+                  router.replace('/(auth)/login');
+                }
+              } else {
+                Alert.alert('Sign Out', 'Are you sure?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Sign Out', style: 'destructive', onPress: async () => {
+                    await signOut();
+                    router.replace('/(auth)/login');
+                  }}
+                ]);
+              }
+            }}
           >
-            <Ionicons 
-              name="refresh" 
-              size={16} 
-              color={colors.primary} 
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.locationUpdateText}>
-              {locationLoading ? 'Updating...' : 'Update Location'}
-            </Text>
+            <Ionicons name="log-out-outline" size={20} color={colors.error} />
+            <Text style={styles.signOutText}>Sign Out</Text>
           </TouchableOpacity>
-        </View>
-
-        {!isReadonly && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="person" size={20} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Account</Text>
-            </View>
-            <View style={styles.preferenceItem}>
-              <Text style={styles.preferenceLabel}>Email</Text>
-              <Text style={styles.preferenceValue}>{user?.email || session?.user?.email || '-'}</Text>
-            </View>
-            <View style={styles.preferenceItem}>
-              <Text style={styles.preferenceLabel}>Member since</Text>
-              <Text style={styles.preferenceValue}>
-                {new Date((user?.created_at || (session?.user as any)?.created_at || new Date().toISOString())).toLocaleDateString()}
-              </Text>
-            </View>
-          </View>
         )}
 
-        {!isReadonly && (
-          <>
-            {/* Profile Settings */}
-            <ProfileSettings
-              onLocationUpdate={handleUpdateLocation}
-              onDeleteAccount={handleDeleteAccount}
-            />
-            <Button
-              title="Sign Out"
-              onPress={handleSignOut}
-              variant="outline"
-              style={styles.signOutButton}
-            />
-          </>
-        )}
+        <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Profile Edit Modal */}
+      {/* Modals */}
       <ProfileEditModal
         visible={showEditModal}
         profile={profile}
         onClose={() => setShowEditModal(false)}
         onSave={handleSaveProfile}
       />
-
-      {/* Upgrade Prompt Modal */}
       <UpgradePrompt
         visible={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
         onUpgrade={() => {
           setShowUpgradePrompt(false);
-          Alert.alert('Coming Soon', 'Premium payment will be available soon!');
+          router.push('/(onboarding)/payment');
         }}
         trigger={upgradeTrigger}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: staticColors.background,
   },
-  content: {
-    padding: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  editButton: {
-    fontSize: 16,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  profileCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  avatarContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
-    position: 'relative',
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  placeholderAvatar: {
-    backgroundColor: colors.border,
+  loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  verifiedBadge: {
+  loadingText: {
+    fontSize: 16,
+    color: staticColors.textSecondary,
+  },
+  
+  // Hero Section - Mobile optimized
+  heroSection: {
+    height: 320,
+    position: 'relative',
+    backgroundColor: staticColors.border,
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  heroGradient: {
     position: 'absolute',
     bottom: 0,
+    left: 0,
     right: 0,
-    backgroundColor: colors.success,
-    borderRadius: 12,
-    width: 24,
-    height: 24,
+    height: 180,
+  },
+  noPhotoContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: staticColors.border,
   },
-  verifiedText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  infoContainer: {
-    alignItems: 'center',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  bio: {
+  noPhotoText: {
+    marginTop: 12,
     fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 8,
+    color: staticColors.textSecondary,
   },
-  meta: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 12,
-  },
-  location: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 16,
-  },
-  statsContainer: {
+  photoIndicators: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginBottom: 12,
+    gap: 4,
   },
-  additionalStats: {
+  indicator: {
+    flex: 1,
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 2,
+  },
+  indicatorActive: {
+    backgroundColor: '#fff',
+  },
+  photoNavigation: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
   },
-  statItem: {
-    alignItems: 'center',
+  photoNavButton: {
+    flex: 1,
   },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
+  navButtonDisabled: {
+    opacity: 0,
   },
-  statLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
+  heroContent: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
   },
-  section: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-  },
-  sectionHeader: {
+  heroNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginLeft: 8,
-  },
-  preferenceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  preferenceLabel: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  preferenceValue: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  interestsContainer: {
-    flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  interestTag: {
-    backgroundColor: `${colors.primary}20`,
+  heroName: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: staticColors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 3,
+  },
+  premiumBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  heroLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  heroLocationText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.95)',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  editButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Stats - Mobile optimized
+  statsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    marginTop: 16,
+    gap: 8,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: staticColors.surface,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  statIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: staticColors.text,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: staticColors.textSecondary,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+
+  // Sections - Mobile optimized
+  section: {
+    backgroundColor: staticColors.surface,
+    marginHorizontal: 12,
+    marginTop: 12,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: staticColors.text,
+    marginBottom: 12,
+  },
+  bioText: {
+    fontSize: 15,
+    color: staticColors.textSecondary,
+    lineHeight: 22,
+  },
+
+  // Interests - Mobile optimized
+  interestsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  interestChip: {
+    backgroundColor: `${staticColors.primary}15`,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: `${colors.primary}40`,
+    borderColor: `${staticColors.primary}30`,
   },
   interestText: {
+    fontSize: 13,
+    color: staticColors.primary,
+    fontWeight: '600',
+  },
+
+  // Action Cards - Mobile optimized
+  actionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: staticColors.border,
+  },
+  actionIconBg: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: staticColors.text,
+  },
+  actionSubtitle: {
+    fontSize: 12,
+    color: staticColors.textSecondary,
+    marginTop: 2,
+  },
+
+  // Preferences - Mobile optimized
+  preferencesGrid: {
+    gap: 12,
+  },
+  prefItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  prefLabel: {
+    flex: 1,
     fontSize: 14,
-    color: colors.primary,
+    color: staticColors.text,
+  },
+  prefValue: {
+    fontSize: 14,
+    color: staticColors.textSecondary,
     fontWeight: '500',
   },
-  locationUpdateButton: {
+
+  // Sign Out - Mobile optimized
+  signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: `${colors.primary}15`,
-    borderRadius: 8,
-    marginTop: 8,
+    gap: 8,
+    marginHorizontal: 12,
+    marginTop: 20,
+    paddingVertical: 14,
+    backgroundColor: `${staticColors.error}10`,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: `${staticColors.error}30`,
   },
-  locationUpdateText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  likesYouButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: `${colors.primary}10`,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 16,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  likesYouTextContainer: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  likesYouTitle: {
-    fontSize: 16,
+  signOutText: {
+    fontSize: 15,
+    color: staticColors.error,
     fontWeight: '600',
-    color: colors.text,
-  },
-  likesCount: {
-    color: colors.primary,
-  },
-  likesYouSubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  boostButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: `${colors.success}10`,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 12,
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-  boostTextContainer: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  boostTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  boostSubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  signOutButton: {
-    marginTop: 24,
   },
 });
 

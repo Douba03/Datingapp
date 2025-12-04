@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, ScrollView, TextInput } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface ReportUserModalProps {
   visible: boolean;
@@ -9,12 +10,12 @@ interface ReportUserModalProps {
 }
 
 const reportReasons = [
-  { key: 'spam', label: 'Spam', icon: '📧', description: 'Unwanted or repetitive messages', color: '#F59E0B' },
-  { key: 'inappropriate', label: 'Inappropriate Content', icon: '🚫', description: 'Sexual, violent, or offensive content', color: '#EF4444' },
-  { key: 'fake_profile', label: 'Fake Profile', icon: '🎭', description: 'Fake photos or misleading information', color: '#8B5CF6' },
-  { key: 'harassment', label: 'Harassment', icon: '😠', description: 'Bullying, threats, or hate speech', color: '#DC2626' },
-  { key: 'scam', label: 'Scam or Fraud', icon: '⚠️', description: 'Asking for money or suspicious activity', color: '#F97316' },
-  { key: 'other', label: 'Other', icon: '❓', description: 'Something else that concerns you', color: '#6B7280' },
+  { key: 'spam', label: 'Spam', icon: 'mail' as const, description: 'Unwanted or repetitive messages', color: '#F59E0B' },
+  { key: 'inappropriate', label: 'Inappropriate Content', icon: 'ban' as const, description: 'Sexual, violent, or offensive content', color: '#EF4444' },
+  { key: 'fake_profile', label: 'Fake Profile', icon: 'person-remove' as const, description: 'Fake photos or misleading information', color: '#8B5CF6' },
+  { key: 'harassment', label: 'Harassment', icon: 'alert-circle' as const, description: 'Bullying, threats, or hate speech', color: '#DC2626' },
+  { key: 'scam', label: 'Scam or Fraud', icon: 'warning' as const, description: 'Asking for money or suspicious activity', color: '#F97316' },
+  { key: 'other', label: 'Other', icon: 'help-circle' as const, description: 'Something else that concerns you', color: '#6B7280' },
 ];
 
 export function ReportUserModal({ visible, userName, onReport, onCancel }: ReportUserModalProps) {
@@ -93,7 +94,7 @@ export function ReportUserModal({ visible, userName, onReport, onCancel }: Repor
                     activeOpacity={0.7}
                   >
                     <View style={[styles.reasonIcon, { backgroundColor: `${reason.color}20` }]}>
-                      <Text style={styles.reasonIconText}>{reason.icon}</Text>
+                      <Ionicons name={reason.icon} size={24} color={reason.color} />
                     </View>
                     <View style={styles.reasonContent}>
                       <Text style={styles.reasonLabel}>{reason.label}</Text>
@@ -170,7 +171,7 @@ export function ReportUserModal({ visible, userName, onReport, onCancel }: Repor
                 {/* Guidelines Box */}
                 <View style={styles.guidelinesBox}>
                   <View style={styles.guidelinesHeader}>
-                    <Text style={styles.guidelinesIcon}>ℹ️</Text>
+                    <Ionicons name="information-circle" size={18} color="#666" style={styles.guidelinesIcon} />
                     <Text style={styles.guidelinesTitle}>What happens next?</Text>
                   </View>
                   <View style={styles.guidelinesList}>
@@ -228,8 +229,7 @@ const styles = StyleSheet.create({
   },
   topBorder: {
     height: 6,
-    background: 'linear-gradient(90deg, #F59E0B 0%, #F97316 50%, #EA580C 100%)',
-    backgroundColor: '#F59E0B', // Fallback for non-web
+    backgroundColor: '#F59E0B',
   },
   iconContainer: {
     alignItems: 'center',

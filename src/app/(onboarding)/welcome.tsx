@@ -1,90 +1,242 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
-  Image,
   Dimensions,
+  TouchableOpacity,
+  Animated,
+  Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Button } from '../../components/ui/Button';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../components/theme/colors';
 
 const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const heartPulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Entry animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Heart pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(heartPulse, {
+          toValue: 1.15,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(heartPulse, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   const handleGetStarted = () => {
     router.push('/(onboarding)/basic-info');
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Logo or Illustration */}
-        <View style={styles.heroSection}>
-          <View style={styles.iconContainer}>
-            <Text style={styles.iconText}>💼❤️</Text>
+    <LinearGradient
+      colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
+      style={styles.container}
+    >
+      <View style={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+        
+        {/* Hero Section */}
+        <Animated.View 
+          style={[
+            styles.heroSection,
+            {
+              opacity: fadeAnim,
+              transform: [
+                { translateY: slideAnim },
+                { scale: scaleAnim }
+              ]
+            }
+          ]}
+        >
+          {/* Animated Logo */}
+          <View style={styles.logoContainer}>
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDark]}
+              style={styles.logoGradient}
+            >
+              <Animated.View style={{ transform: [{ scale: heartPulse }] }}>
+                <Ionicons name="heart" size={56} color="#fff" />
+              </Animated.View>
+            </LinearGradient>
+            
+            {/* Decorative circles */}
+            <View style={[styles.decorCircle, styles.circle1]} />
+            <View style={[styles.decorCircle, styles.circle2]} />
+            <View style={[styles.decorCircle, styles.circle3]} />
           </View>
-          <Text style={styles.appName}>Partner Productivity</Text>
+
+          <Text style={styles.appName}>Mali Match</Text>
           <Text style={styles.tagline}>
-            Find your perfect match while building better habits
+            Find your perfect match{'\n'}in Mali and beyond
           </Text>
-        </View>
+        </Animated.View>
 
-        {/* Features */}
-        <View style={styles.featuresSection}>
+        {/* Features Section */}
+        <Animated.View 
+          style={[
+            styles.featuresSection,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
           <FeatureItem
-            icon="💝"
+            icon="heart-circle"
+            iconColor="#FF6B9D"
             title="Smart Matching"
-            description="Connect with goal-oriented singles"
+            description="AI-powered matches based on your interests"
+            delay={100}
           />
           <FeatureItem
-            icon="⏰"
-            title="Focus Together"
-            description="Earn swipes by staying productive"
+            icon="sparkles"
+            iconColor="#FFB347"
+            title="Super Likes"
+            description="Stand out with special likes"
+            delay={200}
           />
           <FeatureItem
-            icon="🎯"
-            title="Build Habits"
-            description="Date smart, work smarter"
+            icon="shield-checkmark"
+            iconColor="#4ECDC4"
+            title="Safe & Secure"
+            description="Verified profiles for your safety"
+            delay={300}
           />
-        </View>
+        </Animated.View>
 
-        {/* CTA */}
-        <View style={styles.ctaSection}>
-          <Button
-            title="Get Started"
-            onPress={handleGetStarted}
+        {/* CTA Section */}
+        <Animated.View 
+          style={[
+            styles.ctaSection,
+            { opacity: fadeAnim }
+          ]}
+        >
+          <TouchableOpacity
             style={styles.primaryButton}
-          />
+            onPress={handleGetStarted}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.buttonText}>Get Started</Text>
+              <Ionicons name="arrow-forward" size={20} color="#fff" />
+            </LinearGradient>
+          </TouchableOpacity>
+          
           <Text style={styles.termsText}>
-            By continuing, you agree to our Terms of Service and Privacy Policy
+            By continuing, you agree to our{' '}
+            <Text style={styles.linkText}>Terms of Service</Text> and{' '}
+            <Text style={styles.linkText}>Privacy Policy</Text>
           </Text>
-        </View>
+        </Animated.View>
       </View>
-    </SafeAreaView>
+    </LinearGradient>
   );
 }
 
-function FeatureItem({ icon, title, description }: { icon: string; title: string; description: string }) {
+function FeatureItem({ 
+  icon, 
+  iconColor, 
+  title, 
+  description, 
+  delay = 0 
+}: { 
+  icon: string; 
+  iconColor: string;
+  title: string; 
+  description: string;
+  delay?: number;
+}) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, delay);
+
+    return () => clearTimeout(timeout);
+  }, [delay]);
+
   return (
-    <View style={styles.featureItem}>
-      <Text style={styles.featureIcon}>{icon}</Text>
+    <Animated.View 
+      style={[
+        styles.featureItem,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateX: slideAnim }]
+        }
+      ]}
+    >
+      <View style={[styles.featureIconContainer, { backgroundColor: `${iconColor}20` }]}>
+        <Ionicons name={icon as any} size={28} color={iconColor} />
+      </View>
       <View style={styles.featureText}>
         <Text style={styles.featureTitle}>{title}</Text>
         <Text style={styles.featureDescription}>{description}</Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -93,56 +245,95 @@ const styles = StyleSheet.create({
   },
   heroSection: {
     alignItems: 'center',
-    paddingTop: height * 0.1,
+    paddingTop: height * 0.05,
   },
-  iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.surface,
+  logoContainer: {
+    position: 'relative',
+    marginBottom: 24,
+  },
+  logoGradient: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
   },
-  iconText: {
-    fontSize: 48,
+  decorCircle: {
+    position: 'absolute',
+    borderRadius: 100,
+    backgroundColor: colors.primary,
+    opacity: 0.15,
+  },
+  circle1: {
+    width: 20,
+    height: 20,
+    top: -10,
+    right: -15,
+  },
+  circle2: {
+    width: 14,
+    height: 14,
+    bottom: 10,
+    left: -20,
+  },
+  circle3: {
+    width: 10,
+    height: 10,
+    top: 30,
+    right: -25,
   },
   appName: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: colors.text,
+    fontSize: 38,
+    fontWeight: '800',
+    color: colors.primary,
     marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
   tagline: {
-    fontSize: 16,
+    fontSize: 18,
     color: colors.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: 32,
-    lineHeight: 24,
+    lineHeight: 26,
+    fontWeight: '500',
   },
   featuresSection: {
-    gap: 24,
+    gap: 20,
+    paddingVertical: 20,
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
+    backgroundColor: colors.surface,
+    padding: 18,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 157, 0.1)',
   },
-  featureIcon: {
-    fontSize: 40,
+  featureIconContainer: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   featureText: {
     flex: 1,
   },
   featureTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: 4,
   },
@@ -152,17 +343,38 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   ctaSection: {
-    paddingBottom: 32,
-    gap: 16,
+    paddingBottom: 16,
+    gap: 20,
   },
   primaryButton: {
-    paddingVertical: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 10,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
   },
   termsText: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 18,
-    paddingHorizontal: 16,
+    lineHeight: 20,
+  },
+  linkText: {
+    color: colors.primary,
+    fontWeight: '600',
   },
 });

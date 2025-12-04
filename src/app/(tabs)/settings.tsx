@@ -1,125 +1,122 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Switch,
   Alert,
   Platform,
   ActivityIndicator,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotificationPreferences } from '../../hooks/useNotificationPreferences';
 import { usePrivacySettings } from '../../hooks/usePrivacySettings';
+import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../services/supabase/client';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 import { ChangePasswordModal } from '../../components/settings/ChangePasswordModal';
 import { SignOutModal } from '../../components/settings/SignOutModal';
-import { colors as lightColors } from '../../components/theme/colors';
-import { lightTheme, darkTheme } from '../../components/theme/themes';
-
-const THEME_STORAGE_KEY = '@app_theme';
+import { DeleteAccountModal } from '../../components/settings/DeleteAccountModal';
 
 function SettingsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
   const { preferences, loading: prefsLoading, updatePreferences } = useNotificationPreferences();
   const { settings: privacySettings, loading: privacyLoading, updateSettings: updatePrivacySettings } = usePrivacySettings();
-  
-  // App settings
-  const [darkMode, setDarkMode] = useState(false);
-  const [colors, setColors] = useState(lightTheme);
+  const { colors, isDarkMode, toggleTheme } = useTheme();
   
   // Modal states
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [signOutLoading, setSignOutLoading] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
 
-  // Load dark mode preference on mount
-  useEffect(() => {
-    loadDarkModePreference();
-  }, []);
-
-  // Update colors when dark mode changes
-  useEffect(() => {
-    setColors(darkMode ? darkTheme : lightTheme);
-  }, [darkMode]);
-
-  const loadDarkModePreference = async () => {
-    try {
-      const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme === 'dark') {
-        setDarkMode(true);
-      }
-    } catch (error) {
-      console.error('[Settings] Error loading dark mode preference:', error);
-    }
-  };
-
-  const handleDarkModeToggle = async (value: boolean) => {
-    try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, value ? 'dark' : 'light');
-      setDarkMode(value);
+  const handleDarkModeToggle = (value: boolean) => {
+    toggleTheme();
       console.log('[Settings] Dark mode:', value ? 'enabled' : 'disabled');
-      
-      const message = value 
-        ? 'Dark mode enabled! Some screens will update on next visit.'
-        : 'Light mode enabled! Some screens will update on next visit.';
-      
-      if (Platform.OS === 'web') {
-        window.alert(message);
-      } else {
-        Alert.alert('Theme Changed', message);
-      }
-    } catch (error) {
-      console.error('[Settings] Error saving dark mode preference:', error);
-    }
   };
 
   // Notification handlers
   const handlePushNotificationsToggle = async (value: boolean) => {
+    console.log('[Settings] Toggling push notifications:', value);
     const { error } = await updatePreferences({ push_enabled: value });
     if (error) {
-      Alert.alert('Error', `Failed to update notification settings: ${error}`);
+      const errorMsg = `Failed to update notification settings: ${error}`;
+      if (Platform.OS === 'web') {
+        window.alert(errorMsg);
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
+    } else {
+      console.log('[Settings] ✅ Push notifications updated successfully');
     }
   };
 
   const handleMatchNotificationsToggle = async (value: boolean) => {
+    console.log('[Settings] Toggling match notifications:', value);
     const { error } = await updatePreferences({ match_notifications: value });
     if (error) {
-      Alert.alert('Error', `Failed to update notification settings: ${error}`);
+      const errorMsg = `Failed to update notification settings: ${error}`;
+      if (Platform.OS === 'web') {
+        window.alert(errorMsg);
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
+    } else {
+      console.log('[Settings] ✅ Match notifications updated successfully');
     }
   };
 
   const handleMessageNotificationsToggle = async (value: boolean) => {
+    console.log('[Settings] Toggling message notifications:', value);
     const { error } = await updatePreferences({ message_notifications: value });
     if (error) {
-      Alert.alert('Error', `Failed to update notification settings: ${error}`);
+      const errorMsg = `Failed to update notification settings: ${error}`;
+      if (Platform.OS === 'web') {
+        window.alert(errorMsg);
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
+    } else {
+      console.log('[Settings] ✅ Message notifications updated successfully');
     }
   };
 
   const handleLikeNotificationsToggle = async (value: boolean) => {
+    console.log('[Settings] Toggling like notifications:', value);
     const { error } = await updatePreferences({ like_notifications: value });
     if (error) {
-      Alert.alert('Error', `Failed to update notification settings: ${error}`);
+      const errorMsg = `Failed to update notification settings: ${error}`;
+      if (Platform.OS === 'web') {
+        window.alert(errorMsg);
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
+    } else {
+      console.log('[Settings] ✅ Like notifications updated successfully');
     }
   };
 
   // Privacy handlers
   const handleShowOnlineToggle = async (value: boolean) => {
+    console.log('[Settings] Toggling show online status:', value);
     const { error } = await updatePrivacySettings({ show_online_status: value });
     if (error) {
-      Alert.alert('Error', `Failed to update privacy settings: ${error}`);
+      const errorMsg = `Failed to update privacy settings: ${error}`;
+      if (Platform.OS === 'web') {
+        window.alert(errorMsg);
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
+    } else {
+      console.log('[Settings] ✅ Show online status updated successfully');
     }
   };
 
@@ -127,83 +124,147 @@ function SettingsScreen() {
     setShowSignOutModal(true);
   };
 
-  const performSignOut = async () => {
-    setSigningOut(true);
+  const confirmSignOut = async () => {
+    setSignOutLoading(true);
     try {
-      console.log('[Settings] User requested sign out');
-      await signOut();
-      console.log('[Settings] Sign out successful');
+        await signOut();
       setShowSignOutModal(false);
-      router.replace('/(auth)/login');
-    } catch (err) {
-      console.error('[Settings] Sign out exception:', err);
-      setShowSignOutModal(false);
-      router.replace('/(auth)/login');
+        router.replace('/(auth)/login');
+    } catch (error) {
+      console.error('[Settings] Sign out error:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to sign out. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
     } finally {
-      setSigningOut(false);
+      setSignOutLoading(false);
     }
   };
 
   const handleDeleteAccount = () => {
-    if (!user) return;
+    if (!user) {
+      const errorMsg = 'No user logged in';
+      if (Platform.OS === 'web') {
+        window.alert(errorMsg);
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
+      return;
+    }
     setShowDeleteAccountModal(true);
   };
-
-  const performDeleteAccount = async () => {
-    if (!user) return;
     
-    console.log('[Settings] Deleting account for user:', user.id);
+  const confirmDeleteAccount = async () => {
+    if (!user) return;
+      
+    setDeleteAccountLoading(true);
+      try {
+        console.log('[Settings] Deleting account for user:', user.id);
 
-    try {
-      await supabase.from('swipes').delete().or(`swiper_user_id.eq.${user.id},target_user_id.eq.${user.id}`);
-      await supabase.from('matches').delete().or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`);
-      await supabase.from('preferences').delete().eq('user_id', user.id);
-      await supabase.from('swipe_counters').delete().eq('user_id', user.id);
-      await supabase.from('profiles').delete().eq('user_id', user.id);
+        // Delete user data
+        await supabase.from('swipes').delete().or(`swiper_user_id.eq.${user.id},target_user_id.eq.${user.id}`);
+        await supabase.from('matches').delete().or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`);
+        await supabase.from('preferences').delete().eq('user_id', user.id);
+        await supabase.from('swipe_counters').delete().eq('user_id', user.id);
+        await supabase.from('profiles').delete().eq('user_id', user.id);
 
-      await signOut();
+        await signOut();
       setShowDeleteAccountModal(false);
-      router.replace('/(auth)/login');
-    } catch (err: any) {
-      console.error('[Settings] Delete account error:', err);
-      Alert.alert('Error', err?.message || 'Failed to delete account');
+      
+      if (Platform.OS === 'web') {
+        window.alert('Your account has been deleted.');
+      } else {
+        Alert.alert('Account Deleted', 'Your account has been deleted.');
+      }
+        router.replace('/(auth)/login');
+      } catch (err: any) {
+        console.error('[Settings] Delete account error:', err);
+      if (Platform.OS === 'web') {
+        window.alert(err?.message || 'Failed to delete account.');
+    } else {
+                Alert.alert('Deletion Error', err?.message || 'Failed to delete account.');
+              }
+    } finally {
+      setDeleteAccountLoading(false);
     }
   };
 
-  const handleChangePassword = () => setShowChangePasswordModal(true);
-  const handleChangeEmail = () => Alert.alert('Change Email', 'Coming soon!');
-  const handleBlockedUsers = () => router.push('/blocked-users');
-  const handlePrivacyPolicy = () => router.push('/privacy-policy');
-  const handleTermsOfService = () => router.push('/terms-of-service');
-  const handleHelp = () => router.push('/support-ticket');
+  const handleChangePassword = () => {
+    setShowChangePasswordModal(true);
+  };
 
+  const handleChangeEmail = () => {
+    if (Platform.OS === 'web') {
+      window.alert('Email change functionality coming soon!');
+    } else {
+      Alert.alert('Change Email', 'Email change functionality coming soon!');
+    }
+  };
+
+  const handleBlockedUsers = () => {
+    router.push('/blocked-users');
+  };
+
+  const handlePrivacyPolicy = () => {
+    router.push('/privacy-policy');
+  };
+
+  const handleTermsOfService = () => {
+    router.push('/terms-of-service');
+  };
+
+  const handleHelp = () => {
+    router.push('/support-ticket');
+  };
+
+  // Create styles with current theme colors
   const styles = createStyles(colors);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View
+      style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}
+    >
       <ChangePasswordModal
         visible={showChangePasswordModal}
         onClose={() => setShowChangePasswordModal(false)}
       />
-      
-      <DeleteAccountModal
-        visible={showDeleteAccountModal}
-        onClose={() => setShowDeleteAccountModal(false)}
-        onConfirm={performDeleteAccount}
-        colors={colors}
-      />
 
       <SignOutModal
         visible={showSignOutModal}
+        loading={signOutLoading}
         onClose={() => setShowSignOutModal(false)}
-        onConfirm={performSignOut}
-        loading={signingOut}
-        colors={colors}
+        onConfirm={confirmSignOut}
       />
-       
-      {/* No header - clean look */}
 
-      <ScrollView style={styles.content}>
+      <DeleteAccountModal
+        visible={showDeleteAccountModal}
+        loading={deleteAccountLoading}
+        onClose={() => setShowDeleteAccountModal(false)}
+        onConfirm={confirmDeleteAccount}
+      />
+      
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: colors.surface }]}>
+        <View style={styles.headerLeft}>
+          <View style={styles.logoRow}>
+            <View style={[styles.logoContainer, { backgroundColor: colors.textSecondary }]}>
+              <Ionicons name="cog" size={18} color="#fff" />
+            </View>
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>Settings</Text>
+              <Text style={styles.subtitle}>Manage your account</Text>
+            </View>
+          </View>
+        </View>
+        
+        {/* Version badge */}
+        <View style={styles.versionBadge}>
+          <Text style={styles.versionText}>v1.0.0</Text>
+        </View>
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Account Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -341,11 +402,11 @@ function SettingsScreen() {
 
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <Ionicons name="moon" size={20} color={colors.text} />
+              <Ionicons name={isDarkMode ? "moon" : "sunny"} size={20} color={colors.text} />
               <Text style={styles.settingLabel}>Dark Mode</Text>
             </View>
             <Switch
-              value={darkMode}
+              value={isDarkMode}
               onValueChange={handleDarkModeToggle}
               trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor="#fff"
@@ -410,11 +471,7 @@ function SettingsScreen() {
             <Text style={[styles.sectionTitle, { color: colors.error }]}>Danger Zone</Text>
           </View>
 
-          <TouchableOpacity 
-            style={styles.dangerButton} 
-            onPress={handleSignOut}
-            activeOpacity={0.6}
-          >
+          <TouchableOpacity style={styles.dangerButton} onPress={handleSignOut}>
             <Ionicons name="log-out" size={20} color={colors.error} />
             <Text style={styles.dangerButtonText}>Sign Out</Text>
           </TouchableOpacity>
@@ -427,241 +484,79 @@ function SettingsScreen() {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-interface DeleteAccountModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onConfirm: () => Promise<void>;
-  colors: any;
-}
-
-function DeleteAccountModal({ visible, onClose, onConfirm, colors }: DeleteAccountModalProps) {
-  const [confirmWord, setConfirmWord] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [targetWord, setTargetWord] = useState('');
-
-  const randomWords = ['DELETE', 'BYE', 'ERASE', 'GONE', 'EXIT'];
-
-  useEffect(() => {
-    if (visible) {
-      const random = randomWords[Math.floor(Math.random() * randomWords.length)];
-      setTargetWord(random);
-      setConfirmWord('');
-      setError(null);
-    }
-  }, [visible]);
-
-  const handleConfirm = async () => {
-    if (confirmWord.toUpperCase() !== targetWord) {
-      setError(`Please type "${targetWord}" correctly.`);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await onConfirm();
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete account');
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={modalStyles.overlay}
-      >
-        <View style={[modalStyles.container, { backgroundColor: colors.surface }]}>
-          <View style={modalStyles.header}>
-            <View style={[modalStyles.iconContainer, { backgroundColor: '#FEF2F2' }]}>
-              <Ionicons name="warning" size={32} color={colors.error} />
-            </View>
-            <Text style={[modalStyles.title, { color: colors.text }]}>Delete Account?</Text>
-          </View>
-
-          <View style={modalStyles.content}>
-            <Text style={[modalStyles.warningText, { color: colors.text }]}>
-              We're sorry to see you go. This action will <Text style={{ fontWeight: 'bold', color: colors.error }}>permanently delete</Text> your account, matches, messages, and all data.
-            </Text>
-            
-            <Text style={[modalStyles.regretText, { color: colors.textSecondary }]}>
-              Are you absolutely sure you want to lose all your connections forever? This action cannot be undone.
-            </Text>
-
-            <View style={modalStyles.inputContainer}>
-              <Text style={[modalStyles.inputLabel, { color: colors.text }]}>
-                Type <Text style={{ fontWeight: 'bold', color: colors.primary, letterSpacing: 1 }}>{targetWord}</Text> to confirm:
-              </Text>
-              <TextInput
-                style={[modalStyles.input, { 
-                  backgroundColor: colors.background, 
-                  borderColor: colors.border,
-                  color: colors.text 
-                }]}
-                value={confirmWord}
-                onChangeText={(text) => {
-                  setConfirmWord(text);
-                  setError(null);
-                }}
-                placeholder={targetWord}
-                placeholderTextColor={colors.textSecondary}
-                autoCapitalize="characters"
-              />
-              {error && <Text style={modalStyles.errorText}>{error}</Text>}
-            </View>
-          </View>
-
-          <View style={[modalStyles.footer, { borderTopColor: colors.border }]}>
-            <TouchableOpacity
-              style={[modalStyles.cancelButton, { backgroundColor: colors.background }]}
-              onPress={onClose}
-              disabled={loading}
-            >
-              <Text style={[modalStyles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                modalStyles.deleteButton,
-                (confirmWord.toUpperCase() !== targetWord || loading) && modalStyles.deleteButtonDisabled
-              ]}
-              onPress={handleConfirm}
-              disabled={confirmWord.toUpperCase() !== targetWord || loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={modalStyles.deleteButtonText}>Delete Forever</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-const modalStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
+// Create styles function that takes colors as parameter
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
-    borderRadius: 20,
-    width: '100%',
-    maxWidth: 400,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+    flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 24,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    marginHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    borderRadius: 20,
+    shadowColor: '#6B7280',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  iconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  headerLeft: {
+    flex: 1,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    shadowColor: '#6B7280',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  titleContainer: {
+    flexDirection: 'column',
   },
   title: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: -0.3,
   },
-  content: {
-    padding: 20,
-  },
-  warningText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 12,
-    lineHeight: 22,
-  },
-  regretText: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 24,
-    fontStyle: 'italic',
-  },
-  inputContainer: {
-    width: '100%',
-  },
-  inputLabel: {
-    fontSize: 14,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  errorText: {
-    color: '#EF4444',
+  subtitle: {
     fontSize: 12,
-    marginTop: 8,
-    textAlign: 'center',
+    color: colors.textSecondary,
+    marginTop: 1,
   },
-  footer: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 12,
-    borderTopWidth: 1,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
+  versionBadge: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 12,
-    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  cancelButtonText: {
-    fontSize: 16,
+  versionText: {
+    fontSize: 12,
     fontWeight: '600',
-  },
-  deleteButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
-  },
-  deleteButtonDisabled: {
-    opacity: 0.5,
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-});
-
-// Create styles function that takes colors as parameter
-const createStyles = (colors: typeof lightTheme) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
+    color: colors.textSecondary,
   },
   content: {
     flex: 1,
@@ -739,3 +634,4 @@ export default function SettingsScreenWrapper() {
     </ProtectedRoute>
   );
 }
+

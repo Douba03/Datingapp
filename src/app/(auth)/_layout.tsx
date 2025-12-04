@@ -34,9 +34,13 @@ export default function AuthLayout() {
       <Stack.Screen 
         name="login" 
         options={{ 
-          title: 'Welcome Back',
-          headerTitle: 'Welcome Back',
-          headerShown: true,
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="SimpleLogin" 
+        options={{ 
+          headerShown: false,
         }} 
       />
     </Stack>

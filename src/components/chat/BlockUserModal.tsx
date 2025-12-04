@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface BlockUserModalProps {
   visible: boolean;
@@ -9,12 +10,12 @@ interface BlockUserModalProps {
 }
 
 const blockReasons = [
-  { key: 'spam', label: 'Spam', icon: '📧', description: 'Sending unwanted messages' },
-  { key: 'harassment', label: 'Harassment', icon: '😠', description: 'Abusive or threatening behavior' },
-  { key: 'inappropriate', label: 'Inappropriate', icon: '🚫', description: 'Inappropriate content or behavior' },
-  { key: 'fake_profile', label: 'Fake Profile', icon: '🎭', description: 'Fake or misleading profile' },
-  { key: 'scam', label: 'Scam', icon: '⚠️', description: 'Suspicious or fraudulent activity' },
-  { key: 'other', label: 'Other', icon: '❓', description: 'Other reason' },
+  { key: 'spam', label: 'Spam', icon: 'mail' as const, description: 'Sending unwanted messages' },
+  { key: 'harassment', label: 'Harassment', icon: 'alert-circle' as const, description: 'Abusive or threatening behavior' },
+  { key: 'inappropriate', label: 'Inappropriate', icon: 'ban' as const, description: 'Inappropriate content or behavior' },
+  { key: 'fake_profile', label: 'Fake Profile', icon: 'person-remove' as const, description: 'Fake or misleading profile' },
+  { key: 'scam', label: 'Scam', icon: 'warning' as const, description: 'Suspicious or fraudulent activity' },
+  { key: 'other', label: 'Other', icon: 'help-circle' as const, description: 'Other reason' },
 ];
 
 export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUserModalProps) {
@@ -64,7 +65,7 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
           {/* Icon Badge */}
           <View style={styles.iconContainer}>
             <View style={styles.iconCircle}>
-              <Text style={styles.iconText}>🚫</Text>
+              <Ionicons name="ban" size={50} color="#EF4444" />
             </View>
           </View>
 
@@ -91,7 +92,7 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
                     activeOpacity={0.7}
                   >
                     <View style={styles.reasonIcon}>
-                      <Text style={styles.reasonIconText}>{reason.icon}</Text>
+                      <Ionicons name={reason.icon} size={24} color="#666" />
                     </View>
                     <View style={styles.reasonContent}>
                       <Text style={styles.reasonLabel}>{reason.label}</Text>
@@ -104,7 +105,7 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
 
               {/* Info Box */}
               <View style={styles.infoBox}>
-                <Text style={styles.infoIcon}>ℹ️</Text>
+                <Ionicons name="information-circle" size={18} color="#666" style={styles.infoIcon} />
                 <Text style={styles.infoText}>
                   Blocking will prevent you from seeing or matching with this user again.
                 </Text>
@@ -146,7 +147,7 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
               {/* Warning Box */}
               <View style={styles.warningBox}>
                 <View style={styles.warningHeader}>
-                  <Text style={styles.warningIcon}>⚠️</Text>
+                  <Ionicons name="warning" size={18} color="#FF9500" style={styles.warningIcon} />
                   <Text style={styles.warningTitle}>This action will:</Text>
                 </View>
                 <View style={styles.warningList}>
@@ -172,7 +173,7 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
                   onPress={handleConfirmBlock}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.blockButtonText}>🚫 Block User</Text>
+                  <Ionicons name="ban" size={18} color="#fff" style={{ marginRight: 6 }} /><Text style={styles.blockButtonText}>Block User</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -203,8 +204,7 @@ const styles = StyleSheet.create({
   },
   topBorder: {
     height: 6,
-    background: 'linear-gradient(90deg, #EF4444 0%, #DC2626 50%, #B91C1C 100%)',
-    backgroundColor: '#EF4444', // Fallback for non-web
+    backgroundColor: '#EF4444',
   },
   iconContainer: {
     alignItems: 'center',

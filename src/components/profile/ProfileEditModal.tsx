@@ -43,6 +43,10 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
   const [loading, setLoading] = useState(false);
   const [showInterestSelector, setShowInterestSelector] = useState(false);
 
+  // Separate text state for age inputs to allow free typing
+  const [ageMinText, setAgeMinText] = useState('18');
+  const [ageMaxText, setAgeMaxText] = useState('100');
+
   const interestCategories = [
     {
       category: 'Activities',
@@ -68,6 +72,8 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
 
   useEffect(() => {
     if (profile) {
+      const ageMin = profile.preferences?.age_min || 18;
+      const ageMax = profile.preferences?.age_max || 100;
       setFormData({
         first_name: profile.first_name || '',
         bio: profile.bio || '',
@@ -75,11 +81,13 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
         photos: profile.photos || [],
         city: profile.city || '',
         country: profile.country || '',
-        age_min: profile.preferences?.age_min || 18,
-        age_max: profile.preferences?.age_max || 100,
+        age_min: ageMin,
+        age_max: ageMax,
         max_distance_km: profile.preferences?.max_distance_km || 50,
         relationship_intent: profile.preferences?.relationship_intent || 'not_sure',
       });
+      setAgeMinText(String(ageMin));
+      setAgeMaxText(String(ageMax));
     }
   }, [profile]);
 
@@ -92,7 +100,8 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
       onClose();
     } catch (error) {
       console.error('[ProfileEditModal] Save error:', error);
-      Alert.alert('Error', `Failed to update profile: ${error.message || 'Unknown error'}`);
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert('Error', `Failed to update profile: ${errMsg}`);
     } finally {
       setLoading(false);
     }
@@ -402,13 +411,17 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
                   <Text style={styles.rangeLabel}>Min</Text>
                   <TextInput
                     style={styles.rangeInput}
-                    value={String(formData.age_min)}
-                    onChangeText={(text) => {
-                      const num = parseInt(text) || 18;
-                      setFormData(prev => ({ ...prev, age_min: Math.max(18, Math.min(num, prev.age_max - 1)) }));
+                    value={ageMinText}
+                    onChangeText={setAgeMinText}
+                    onBlur={() => {
+                      const num = parseInt(ageMinText) || 18;
+                      const validNum = Math.max(18, Math.min(num, formData.age_max - 1));
+                      setFormData(prev => ({ ...prev, age_min: validNum }));
+                      setAgeMinText(String(validNum));
                     }}
                     keyboardType="numeric"
                     maxLength={3}
+                    placeholder="18"
                   />
                 </View>
                 <Text style={styles.rangeSeparator}>to</Text>
@@ -416,13 +429,17 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
                   <Text style={styles.rangeLabel}>Max</Text>
                   <TextInput
                     style={styles.rangeInput}
-                    value={String(formData.age_max)}
-                    onChangeText={(text) => {
-                      const num = parseInt(text) || 100;
-                      setFormData(prev => ({ ...prev, age_max: Math.max(prev.age_min + 1, Math.min(num, 100)) }));
+                    value={ageMaxText}
+                    onChangeText={setAgeMaxText}
+                    onBlur={() => {
+                      const num = parseInt(ageMaxText) || 100;
+                      const validNum = Math.max(formData.age_min + 1, Math.min(num, 100));
+                      setFormData(prev => ({ ...prev, age_max: validNum }));
+                      setAgeMaxText(String(validNum));
                     }}
                     keyboardType="numeric"
                     maxLength={3}
+                    placeholder="100"
                   />
                 </View>
               </View>

@@ -10,6 +10,8 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../services/supabase/client';
@@ -65,7 +67,8 @@ export default function SimpleLoginScreen() {
         console.error('Auth error:', error);
         
         // Handle specific error cases
-        let errorMessage = error.message || 'An unknown error occurred';
+        const authError = error as { message?: string };
+        let errorMessage = authError.message || 'An unknown error occurred';
         
         if (errorMessage.includes('Invalid login credentials')) {
           // Check if email exists to determine if it's a wrong password or non-existent email
@@ -164,14 +167,25 @@ export default function SimpleLoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={styles.title}>
-            {isSignUp ? 'Create Account' : 'Welcome Back'}
-          </Text>
-          <Text style={styles.subtitle}>
-            {isSignUp ? 'Join Partner Productivity' : 'Sign in to continue'}
-          </Text>
+          {/* Logo & App Name */}
+          <View style={styles.logoContainer}>
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDark]}
+              style={styles.logoCircle}
+            >
+              <Ionicons name="heart" size={40} color="#fff" />
+            </LinearGradient>
+            <Text style={styles.appName}>Mali Match</Text>
+            <Text style={styles.tagline}>Find your perfect match</Text>
+          </View>
 
           <View style={styles.form}>
+            <Text style={styles.formTitle}>
+              {isSignUp ? 'Create Account' : 'Welcome Back'}
+            </Text>
+            <Text style={styles.formSubtitle}>
+              {isSignUp ? 'Join Mali Match today' : 'Sign in to continue'}
+            </Text>
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -202,7 +216,7 @@ export default function SimpleLoginScreen() {
 
             {resetSent ? (
               <View style={styles.resetSentContainer}>
-                <Text style={styles.resetSentText}>✅ Password reset link sent!</Text>
+                <Text style={styles.resetSentText}>Password reset link sent!</Text>
                 <Text style={styles.resetSentSubtext}>Check your email for instructions.</Text>
                 <TouchableOpacity onPress={() => {
                   setIsForgotPassword(false);
@@ -263,18 +277,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 20,
   },
-  title: {
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  logoCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    marginBottom: 16,
+  },
+  appName: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: -0.5,
+  },
+  tagline: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  formTitle: {
+    fontSize: 22,
+    fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 16,
+  formSubtitle: {
+    fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 48,
+    marginBottom: 20,
   },
   form: {
     gap: 16,

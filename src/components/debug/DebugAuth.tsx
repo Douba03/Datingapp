@@ -1,7 +1,7 @@
 // Debug component to help troubleshoot loading issues
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 
 const colors = {
   primary: '#6366F1',

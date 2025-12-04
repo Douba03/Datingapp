@@ -3,14 +3,14 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Button } from '../../components/ui/Button';
 import { colors } from '../../components/theme/colors';
 import { useOnboarding } from '../../contexts/OnboardingContext';
 
@@ -19,29 +19,35 @@ const MAX_INTERESTS = 10;
 
 const interestCategories = [
   {
-    category: 'Activities',
-    interests: ['Fitness', 'Yoga', 'Running', 'Hiking', 'Cycling', 'Dancing', 'Cooking', 'Gaming', 'Photography', 'Art'],
+    category: '🎨 Creative',
+    color: '#FF6B9D',
+    interests: ['Photography', 'Art', 'Music', 'Writing', 'Design', 'Dancing'],
   },
   {
-    category: 'Entertainment',
-    interests: ['Movies', 'TV Shows', 'Music', 'Concerts', 'Theater', 'Comedy', 'Podcasts', 'Reading', 'Writing'],
+    category: '🏃 Active',
+    color: '#4ECDC4',
+    interests: ['Fitness', 'Yoga', 'Running', 'Hiking', 'Cycling', 'Sports'],
   },
   {
-    category: 'Lifestyle',
-    interests: ['Travel', 'Food', 'Coffee', 'Wine', 'Fashion', 'Shopping', 'DIY', 'Home Decor', 'Pets', 'Plants'],
+    category: '🎬 Entertainment',
+    color: '#FFB347',
+    interests: ['Movies', 'TV Shows', 'Gaming', 'Concerts', 'Theater', 'Podcasts'],
   },
   {
-    category: 'Professional',
-    interests: ['Entrepreneurship', 'Startups', 'Tech', 'Design', 'Marketing', 'Finance', 'Education', 'Science'],
+    category: '🌍 Lifestyle',
+    color: '#9B59B6',
+    interests: ['Travel', 'Food', 'Coffee', 'Wine', 'Fashion', 'Pets'],
   },
   {
-    category: 'Social',
-    interests: ['Volunteering', 'Activism', 'Environment', 'Politics', 'Philosophy', 'Spirituality', 'Meditation'],
+    category: '💼 Professional',
+    color: '#3498DB',
+    interests: ['Tech', 'Startups', 'Finance', 'Marketing', 'Science', 'Education'],
   },
 ];
 
 export default function InterestsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { updateData } = useOnboarding();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
 
@@ -59,33 +65,35 @@ export default function InterestsScreen() {
 
   const handleContinue = () => {
     if (selectedInterests.length < MIN_INTERESTS) {
-      Alert.alert(
-        'Select More Interests',
-        `Please select at least ${MIN_INTERESTS} interests to help us find better matches`,
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Select More', `Please select at least ${MIN_INTERESTS} interests`);
       return;
     }
 
-    // Save interests to context
     updateData({ interests: selectedInterests });
-    console.log('[Interests] Saved interests, navigating to preferences...');
     router.push('/(onboarding)/preferences');
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header with progress */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
+    <LinearGradient
+      colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
+      style={styles.container}
+    >
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
+        
         <View style={styles.progressContainer}>
-          <View style={[styles.progressBar, { width: '56%' }]} />
+          <LinearGradient
+            colors={[colors.primary, colors.primaryDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.progressBar, { width: '56%' }]}
+          />
         </View>
+        
+        <Text style={styles.stepText}>Step 4 of 7</Text>
       </View>
 
       <ScrollView
@@ -96,26 +104,38 @@ export default function InterestsScreen() {
         <View style={styles.content}>
           {/* Title */}
           <View style={styles.titleSection}>
-            <Text style={styles.title}>Your interests</Text>
+            <Ionicons name="heart-circle" size={48} color="#FF6B9D" />
+            <Text style={styles.title}>What are you into?</Text>
             <Text style={styles.subtitle}>
-              Select at least {MIN_INTERESTS} interests to help us find your perfect match
+              Select interests to help us find your perfect match
             </Text>
           </View>
 
-          {/* Selection Count */}
-          <View style={styles.countSection}>
-            <Text style={styles.countText}>
+          {/* Count Badge */}
+          <View style={[
+            styles.countBadge,
+            selectedInterests.length >= MIN_INTERESTS && styles.countBadgeComplete
+          ]}>
+            <Ionicons 
+              name={selectedInterests.length >= MIN_INTERESTS ? "checkmark-circle" : "heart"} 
+              size={18} 
+              color={selectedInterests.length >= MIN_INTERESTS ? colors.success : colors.primary} 
+            />
+            <Text style={[
+              styles.countText,
+              selectedInterests.length >= MIN_INTERESTS && { color: colors.success }
+            ]}>
               {selectedInterests.length} / {MAX_INTERESTS} selected
-              {selectedInterests.length < MIN_INTERESTS && 
-                ` (${MIN_INTERESTS - selectedInterests.length} more required)`
-              }
+              {selectedInterests.length < MIN_INTERESTS && ` (${MIN_INTERESTS - selectedInterests.length} more)`}
             </Text>
           </View>
 
           {/* Interest Categories */}
           {interestCategories.map((category, categoryIndex) => (
             <View key={categoryIndex} style={styles.categorySection}>
-              <Text style={styles.categoryTitle}>{category.category}</Text>
+              <Text style={[styles.categoryTitle, { color: category.color }]}>
+                {category.category}
+              </Text>
               <View style={styles.interestsList}>
                 {category.interests.map((interest, index) => {
                   const isSelected = selectedInterests.includes(interest);
@@ -124,9 +144,13 @@ export default function InterestsScreen() {
                       key={index}
                       style={[
                         styles.interestChip,
-                        isSelected && styles.interestChipSelected,
+                        isSelected && { 
+                          backgroundColor: category.color,
+                          borderColor: category.color,
+                        },
                       ]}
                       onPress={() => toggleInterest(interest)}
+                      activeOpacity={0.7}
                     >
                       <Text
                         style={[
@@ -149,40 +173,72 @@ export default function InterestsScreen() {
       </ScrollView>
 
       {/* Continue Button */}
-      <View style={styles.footer}>
-        <Button
-          title={`Continue ${selectedInterests.length >= MIN_INTERESTS ? '' : `(${MIN_INTERESTS - selectedInterests.length} more)`}`}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+        <TouchableOpacity
+          style={[
+            styles.continueButton,
+            selectedInterests.length < MIN_INTERESTS && styles.continueButtonDisabled
+          ]}
           onPress={handleContinue}
           disabled={selectedInterests.length < MIN_INTERESTS}
-          style={styles.continueButton}
-        />
+          activeOpacity={0.9}
+        >
+          <LinearGradient
+            colors={selectedInterests.length >= MIN_INTERESTS 
+              ? [colors.primary, colors.primaryDark]
+              : ['#D1D5DB', '#9CA3AF']
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.buttonGradient}
+          >
+            <Text style={styles.buttonText}>
+              {selectedInterests.length >= MIN_INTERESTS ? 'Continue' : `Select ${MIN_INTERESTS - selectedInterests.length} more`}
+            </Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   backButton: {
-    padding: 8,
-    marginBottom: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   progressContainer: {
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
+    height: 6,
+    backgroundColor: 'rgba(255, 107, 157, 0.15)',
+    borderRadius: 3,
+    marginBottom: 8,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 2,
+    borderRadius: 3,
+  },
+  stepText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
@@ -194,48 +250,73 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   titleSection: {
-    marginBottom: 24,
-    marginTop: 8,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  emoji: {
+    fontSize: 48,
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: colors.text,
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
     lineHeight: 22,
+    textAlign: 'center',
   },
-  countSection: {
+  countBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.surface,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 24,
+    alignSelf: 'center',
     marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  countBadgeComplete: {
+    borderColor: colors.success,
+    backgroundColor: `${colors.success}08`,
   },
   countText: {
     fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
+    fontWeight: '700',
+    color: colors.primary,
   },
   categorySection: {
-    marginBottom: 32,
+    marginBottom: 28,
   },
   categoryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 12,
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 14,
   },
   interestsList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
   interestChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: colors.surface,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: colors.border,
     borderRadius: 24,
     paddingVertical: 12,
@@ -245,12 +326,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
-  },
-  interestChipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
   },
   interestText: {
     fontSize: 15,
@@ -262,11 +337,33 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingTop: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   continueButton: {
-    paddingVertical: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  continueButtonDisabled: {
+    shadowOpacity: 0.1,
+  },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 10,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

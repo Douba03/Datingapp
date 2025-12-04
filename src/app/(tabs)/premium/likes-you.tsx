@@ -4,13 +4,13 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Image,
   Alert,
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LoadingSpinner } from '../../../components/ui/LoadingSpinner';
@@ -26,6 +26,7 @@ const CARD_WIDTH = (width - 48) / 2;
 
 export default function LikesYouScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [likedUsers, setLikedUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +48,7 @@ export default function LikesYouScreen() {
       // Get all users who liked current user
       const { data: swipesData, error: swipesError } = await supabase
         .from('swipes')
-        .select('swiper_user_id, created_at')
+        .select('swiper_user_id, created_at, action')
         .eq('target_user_id', user.id)
         .in('action', ['like', 'superlike'])
         .order('created_at', { ascending: false });
@@ -117,23 +118,44 @@ export default function LikesYouScreen() {
   };
 
   if (loading) {
-    return <LoadingSpinner text="Loading your admirers..." />;
+    return (
+      <LinearGradient
+        colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
+        style={styles.container}
+      >
+        <LoadingSpinner text="Loading your admirers..." />
+      </LinearGradient>
+    );
   }
 
   // Show blurred preview for non-premium users
   if (!user?.is_premium) {
     return (
-      <SafeAreaView style={styles.container}>
+      <LinearGradient
+        colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
+        style={[styles.container, { paddingTop: insets.top }]}
+      >
+        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.title}>
-            People Who Liked You
-            {likedUsers.length > 0 && (
-              <Text style={styles.count}> ({likedUsers.length})</Text>
-            )}
-          </Text>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <View style={styles.logoRow}>
+              <LinearGradient
+                colors={[colors.accent, '#FFA000']}
+                style={styles.logoContainer}
+              >
+                <Ionicons name="diamond" size={18} color="#fff" />
+              </LinearGradient>
+              <View style={styles.titleContainer}>
+                <Text style={styles.title}>Premium</Text>
+                <Text style={styles.subtitle}>
+                  {likedUsers.length > 0 ? `${likedUsers.length} people like you` : 'See who likes you'}
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         {likedUsers.length === 0 ? (
@@ -248,23 +270,36 @@ export default function LikesYouScreen() {
           }}
           trigger="likes"
         />
-      </SafeAreaView>
+      </LinearGradient>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <LinearGradient
+      colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
+      style={[styles.container, { paddingTop: insets.top }]}
+    >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>
-          People Who Liked You
-          {likedUsers.length > 0 && (
-            <Text style={styles.count}> ({likedUsers.length})</Text>
-          )}
-        </Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={22} color={colors.text} />
+          </TouchableOpacity>
+          <View style={styles.logoRow}>
+            <LinearGradient
+              colors={[colors.accent, '#FFA000']}
+              style={styles.logoContainer}
+            >
+              <Ionicons name="diamond" size={18} color="#fff" />
+            </LinearGradient>
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>Premium</Text>
+              <Text style={styles.subtitle}>
+                {likedUsers.length > 0 ? `${likedUsers.length} people like you` : 'See who likes you'}
+              </Text>
+            </View>
+          </View>
+        </View>
         <PremiumBadge size="small" />
       </View>
 
@@ -281,6 +316,7 @@ export default function LikesYouScreen() {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
           {likedUsers.map((user) => (
             <LikedUserCard
@@ -291,7 +327,7 @@ export default function LikesYouScreen() {
           ))}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </LinearGradient>
   );
 }
 
@@ -372,24 +408,64 @@ function LikedUserCard({ user, onPress }: { user: any; onPress: () => void }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    marginHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    borderRadius: 20,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  headerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  titleContainer: {
+    flexDirection: 'column',
   },
   backButton: {
-    marginRight: 12,
+    marginRight: 10,
+    padding: 4,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '800',
     color: colors.text,
-    flex: 1,
+    letterSpacing: -0.3,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
   count: {
     color: colors.primary,

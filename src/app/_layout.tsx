@@ -3,12 +3,14 @@ import { Stack, Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../hooks/useAuth';
 import { View, Text, ActivityIndicator, Platform } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { notificationService } from '../services/notifications';
 import { supabase } from '../services/supabase/client';
 import { PurchaseService } from '../services/iap/purchaseService';
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 
-const colors = {
-  primary: '#6366F1',
+const defaultColors = {
+  primary: '#FF6B9D',
   secondary: '#F97316',
   accent: '#10B981',
   background: '#FAFBFC',
@@ -24,8 +26,9 @@ const colors = {
   superlike: '#8B5CF6',
 };
 
-export default function RootLayout() {
+function RootLayoutContent() {
   const { user, session, loading, supabaseError } = useAuth();
+  const { colors, isDarkMode } = useTheme();
 
   // Initialize IAP when app starts (fails gracefully if not available)
   useEffect(() => {
@@ -80,7 +83,7 @@ export default function RootLayout() {
           // Test 3: Send local notification
           await notificationService.sendLocalNotification({
             type: 'system',
-            title: '🎉 Test Notification',
+            title: 'Test Notification',
             body: 'Push notifications are working!',
           });
           console.log('✅ Test notification sent');
@@ -102,18 +105,18 @@ export default function RootLayout() {
   // Add timeout fallback - if loading takes more than 10 seconds, show auth screen
   if (loading && !user && !session) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ marginTop: 16, color: colors.text }}>Loading...</Text>
-        {supabaseError && (
-          <Text style={{ marginTop: 8, color: colors.error, textAlign: 'center', paddingHorizontal: 20 }}>
-            {supabaseError}
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ marginTop: 16, color: colors.text }}>Loading...</Text>
+          {supabaseError && (
+            <Text style={{ marginTop: 8, color: colors.error, textAlign: 'center', paddingHorizontal: 20 }}>
+              {supabaseError}
+            </Text>
+          )}
+          <Text style={{ marginTop: 8, color: colors.textSecondary, fontSize: 12, textAlign: 'center', paddingHorizontal: 20 }}>
+            If this takes too long, check your internet connection
           </Text>
-        )}
-        <Text style={{ marginTop: 8, color: colors.textSecondary, fontSize: 12, textAlign: 'center', paddingHorizontal: 20 }}>
-          If this takes too long, check your internet connection
-        </Text>
-      </View>
+        </View>
     );
   }
 
@@ -121,7 +124,7 @@ export default function RootLayout() {
   if (!user && !session) {
     return (
       <>
-        <StatusBar style="auto" />
+        <StatusBar style={isDarkMode ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
             headerStyle: {
@@ -130,6 +133,9 @@ export default function RootLayout() {
             headerTintColor: colors.text,
             headerTitleStyle: {
               fontWeight: 'bold',
+            },
+            contentStyle: {
+              backgroundColor: colors.background,
             },
           }}
         >
@@ -147,7 +153,7 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style="auto" />
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
           headerStyle: {
@@ -156,6 +162,9 @@ export default function RootLayout() {
           headerTintColor: colors.text,
           headerTitleStyle: {
             fontWeight: 'bold',
+          },
+          contentStyle: {
+            backgroundColor: colors.background,
           },
         }}
       >
@@ -182,5 +191,16 @@ export default function RootLayout() {
         />
       </Stack>
     </>
+  );
+}
+
+// Main export wraps with providers
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <RootLayoutContent />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

@@ -21,13 +21,16 @@
       "android": {
         "buildType": "apk"
       },
+      "ios": {
+        "simulator": true
+      },
       "env": {
         "npm_config_legacy_peer_deps": "true"
       }
     },
     "production": {
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       },
       "env": {
         "npm_config_legacy_peer_deps": "true",

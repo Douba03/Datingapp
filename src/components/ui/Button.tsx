@@ -1,11 +1,12 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
 
 interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'outline';
+  variant?: 'primary' | 'secondary' | 'outline' | 'gradient';
   size?: 'small' | 'medium' | 'large';
   disabled?: boolean;
   loading?: boolean;
@@ -21,19 +22,44 @@ export function Button({
   loading = false,
   style,
 }: ButtonProps) {
+  const textStyle = [
+    styles.text,
+    styles[`${variant}Text`] || styles.primaryText,
+    styles[`${size}Text`],
+    disabled && styles.disabledText,
+  ];
+
+  // Use gradient for primary buttons
+  if (variant === 'primary' || variant === 'gradient') {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled || loading}
+        activeOpacity={0.85}
+        style={[styles.buttonWrapper, styles[size], disabled && styles.disabled, style]}
+      >
+        <LinearGradient
+          colors={['#FF6B9D', '#FF8E72', '#FFB347']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.gradientButton, styles[size]]}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={textStyle}>{title}</Text>
+          )}
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
+
   const buttonStyle = [
     styles.button,
     styles[variant],
     styles[size],
     disabled && styles.disabled,
     style,
-  ];
-
-  const textStyle = [
-    styles.text,
-    styles[`${variant}Text`],
-    styles[`${size}Text`],
-    disabled && styles.disabledText,
   ];
 
   return (
@@ -44,7 +70,7 @@ export function Button({
       activeOpacity={0.8}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? '#fff' : colors.primary} />
+        <ActivityIndicator color={variant === 'secondary' ? '#fff' : colors.primary} />
       ) : (
         <Text style={textStyle}>{title}</Text>
       )}
@@ -53,8 +79,26 @@ export function Button({
 }
 
 const styles = StyleSheet.create({
+  buttonWrapper: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#FF6B9D',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  gradientButton: {
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
   button: {
-    borderRadius: 16, // More rounded
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -65,7 +109,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3, // Android shadow
+    elevation: 3,
   },
   primary: {
     backgroundColor: colors.primary,
@@ -83,6 +127,9 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     shadowOpacity: 0,
     elevation: 0,
+  },
+  gradient: {
+    // Handled by LinearGradient
   },
   small: {
     paddingHorizontal: 20,
@@ -118,6 +165,9 @@ const styles = StyleSheet.create({
   outlineText: {
     color: colors.primary,
     fontWeight: '600',
+  },
+  gradientText: {
+    color: '#fff',
   },
   smallText: {
     fontSize: 14,
