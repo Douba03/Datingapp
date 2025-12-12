@@ -9,8 +9,9 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useChat } from '../../../hooks/useChat';
@@ -530,32 +531,39 @@ function ChatScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Messages */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <MessageBubble message={item} onImagePress={handleImageOpen} />}
-        contentContainerStyle={styles.messagesContainer}
-        inverted={false}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyMessages}>
-            <Ionicons name="chatbubbles-outline" size={48} color={colors.textSecondary} />
-            <Text style={[styles.emptyText, { color: colors.text }]}>Start the conversation!</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Say hi to {match.other_user.first_name}!</Text>
-          </View>
-        )}
-      />
+      {/* Messages + Input wrapped in KeyboardAvoidingView */}
+      <KeyboardAvoidingView 
+        style={styles.chatArea}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 25}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => <MessageBubble message={item} onImagePress={handleImageOpen} />}
+          contentContainerStyle={styles.messagesContainer}
+          inverted={false}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+          ListEmptyComponent={() => (
+            <View style={styles.emptyMessages}>
+              <Ionicons name="chatbubbles-outline" size={48} color={colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: colors.text }]}>Start the conversation!</Text>
+              <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Say hi to {match.other_user.first_name}!</Text>
+            </View>
+          )}
+        />
 
-      {/* Message Input */}
-      <MessageInput
-        onSend={handleSendMessage}
-        onAttach={handleAttach}
-        attachLoading={attachLoading}
-        placeholder={`Message ${match.other_user.first_name}...`}
-        disabled={sendingMessage}
-      />
+        {/* Message Input */}
+        <MessageInput
+          onSend={handleSendMessage}
+          onAttach={handleAttach}
+          attachLoading={attachLoading}
+          placeholder={`Message ${match.other_user.first_name}...`}
+          disabled={sendingMessage}
+        />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -579,19 +587,19 @@ const styles = StyleSheet.create({
     backgroundColor: staticColors.surface,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: staticColors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
+    height: 50,
+  },
+  chatArea: {
+    flex: 1,
   },
   backButton: {
-    padding: 8,
-    marginRight: 8,
+    padding: 4,
+    marginRight: 4,
   },
   profileSection: {
     flex: 1,
@@ -599,10 +607,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 10,
     borderWidth: 2,
     borderColor: staticColors.primary,
   },
@@ -610,22 +618,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   matchName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: staticColors.text,
   },
   onlineStatus: {
-    fontSize: 14,
+    fontSize: 12,
     color: staticColors.success,
-    marginTop: 2,
+    marginTop: 1,
   },
   moreButton: {
-    padding: 8,
-    marginLeft: 8,
+    padding: 6,
+    marginLeft: 4,
   },
   refreshButton: {
-    padding: 8,
-    marginLeft: 4,
+    padding: 6,
+    marginLeft: 2,
   },
   messagesContainer: {
     flexGrow: 1,

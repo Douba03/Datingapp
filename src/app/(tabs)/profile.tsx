@@ -122,7 +122,7 @@ function ProfileScreen() {
     }
   };
 
-  const isReadonly = params?.readonly === '1' && params?.viewUserId && params.viewUserId !== user?.id;
+  const isReadonly = (params?.readonly === 'true' || params?.readonly === '1') && params?.viewUserId && params.viewUserId !== user?.id;
 
   React.useEffect(() => {
     const loadOther = async () => {
@@ -340,8 +340,8 @@ function ProfileScreen() {
               <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            {/* Boost Profile */}
-            <TouchableOpacity style={styles.actionCard} onPress={handleBoost} disabled={boostLoading}>
+            {/* Boost Profile - Hidden from premium functions */}
+            {/* <TouchableOpacity style={styles.actionCard} onPress={handleBoost} disabled={boostLoading}>
               <LinearGradient colors={['#9C27B0', '#7B1FA2']} style={styles.actionIconBg}>
                 <Ionicons name="rocket" size={24} color="#fff" />
               </LinearGradient>
@@ -352,7 +352,7 @@ function ProfileScreen() {
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             {/* Update Location */}
             <TouchableOpacity

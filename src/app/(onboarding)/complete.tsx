@@ -18,6 +18,7 @@ import { colors } from '../../components/theme/colors';
 import { useAuth } from '../../hooks/useAuth';
 import { useOnboarding } from '../../contexts/OnboardingContext';
 import { supabase } from '../../services/supabase/client';
+import { locationToPoint } from '../../utils/location';
 
 export default function CompleteScreen() {
   const router = useRouter();
@@ -103,7 +104,7 @@ export default function CompleteScreen() {
         bio: onboardingData.bio || '',
         photos: onboardingData.photos || [],
         primary_photo_idx: 0,
-        location: onboardingData.location || null,
+        location: locationToPoint(onboardingData.location),
         city: onboardingData.city || null,
         country: onboardingData.country || null,
         interests: onboardingData.interests || [],

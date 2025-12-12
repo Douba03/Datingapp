@@ -95,8 +95,11 @@ function DiscoverScreen() {
   };
 
   const handleProfilePress = () => {
-    // Navigate to profile detail screen
-    Alert.alert('Profile', 'Profile detail screen would open here');
+    // Navigate to profile detail screen with the current profile
+    const currentProfile = profiles[0];
+    if (currentProfile && currentProfile.user_id) {
+      router.push(`/(tabs)/profile?viewUserId=${currentProfile.user_id}&readonly=true`);
+    }
   };
 
   const handleMatchContinue = () => {
@@ -232,14 +235,19 @@ function DiscoverScreen() {
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <View style={styles.buttonRow}>
-            {/* Undo Button */}
+            {/* Undo Button - Premium only */}
             <TouchableOpacity 
               style={[styles.actionButton, styles.undoActionButton]}
               onPress={handleUndo}
               activeOpacity={0.85}
             >
-              <View style={styles.undoButtonCircle}>
-                <Ionicons name="arrow-undo" size={22} color="#9C27B0" />
+              <View style={[styles.undoButtonCircle, !user?.is_premium && styles.lockedButton]}>
+                <Ionicons name="arrow-undo" size={22} color={user?.is_premium ? "#9C27B0" : "#999"} />
+                {!user?.is_premium && (
+                  <View style={styles.lockBadge}>
+                    <Ionicons name="lock-closed" size={10} color="#fff" />
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
           
@@ -443,5 +451,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
+  },
+  lockedButton: {
+    backgroundColor: '#f0f0f0',
+    borderColor: '#ddd',
+  },
+  lockBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#666',
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

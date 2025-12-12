@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SwipeCounter as SwipeCounterType } from '../../types/user';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SWIPE_CONSTANTS } from '../../constants/swipes';
+import { useAuth } from '../../hooks/useAuth';
 
 interface SwipeCounterProps {
   counter: SwipeCounterType | null;
@@ -13,7 +14,23 @@ interface SwipeCounterProps {
 
 export function SwipeCounter({ counter, onRefillPress }: SwipeCounterProps) {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [now, setNow] = useState(Date.now());
+  
+  // Premium users have unlimited swipes - show special badge
+  if (user?.is_premium) {
+    return (
+      <LinearGradient
+        colors={['#FFD700', '#FFA500']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.premiumContainer}
+      >
+        <Ionicons name="infinite" size={18} color="#fff" />
+        <Text style={styles.premiumText}>Unlimited</Text>
+      </LinearGradient>
+    );
+  }
   
   if (!counter) return null;
 
@@ -106,6 +123,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   exhaustedText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  premiumContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  premiumText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#fff',

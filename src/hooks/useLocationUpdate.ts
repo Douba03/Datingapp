@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../services/supabase/client';
 import { useAuth } from './useAuth';
 import { useLocation } from './useLocation';
+import { locationToPoint } from '../utils/location';
 
 export function useLocationUpdate() {
   const { user } = useAuth();
@@ -31,7 +32,7 @@ export function useLocationUpdate() {
       const { data, error: updateError } = await supabase
         .from('profiles')
         .update({
-          location: locationData.coords,
+          location: locationToPoint(locationData.coords),
           city: locationData.city,
           country: locationData.country,
           updated_at: new Date().toISOString(),

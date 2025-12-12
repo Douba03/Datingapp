@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase/client';
 import { User, Profile } from '../types/user';
+import { pointToLocation } from '../utils/location';
+import { PurchaseService } from '../services/iap/purchaseService';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -268,7 +270,7 @@ export function useAuth() {
             bio: dbProfile.bio || '',
             photos: dbProfile.photos || [],
             primary_photo_idx: dbProfile.primary_photo_idx || 0,
-            location: dbProfile.location || undefined,
+            location: dbProfile.location ? (typeof dbProfile.location === 'string' ? pointToLocation(dbProfile.location) : dbProfile.location) : undefined,
             city: dbProfile.city || undefined,
             country: dbProfile.country || undefined,
             interests: dbProfile.interests || [],
@@ -635,7 +637,7 @@ export function useAuth() {
           bio: dbProfile.bio || '',
           photos: dbProfile.photos || [],
           primary_photo_idx: dbProfile.primary_photo_idx || 0,
-          location: dbProfile.location || undefined,
+          location: dbProfile.location ? (typeof dbProfile.location === 'string' ? pointToLocation(dbProfile.location) : dbProfile.location) : undefined,
           city: dbProfile.city || undefined,
           country: dbProfile.country || undefined,
           interests: dbProfile.interests || [],

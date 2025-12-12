@@ -1,7 +1,8 @@
 import { Platform, Alert } from 'react-native';
 import { supabase } from '../supabase/client';
+import * as RNIap from 'react-native-iap';
 
-// Product IDs - MUST match App Store Connect / Google Play Console exactly
+// Product IDs - MUST match Google Play Console exactly
 export const PRODUCT_IDS = {
   PREMIUM_MONTHLY: Platform.select({
     ios: 'premium_monthly_199',
@@ -31,13 +32,6 @@ export interface Product {
   priceCurrencyCode: string;
 }
 
-// IAP module placeholder - will be replaced with react-native-iap after Google Play setup
-let RNIap: any = null;
-
-/**
- * Purchase Service
- * Currently uses placeholder mode - real IAP will be added after Google Play setup
- */
 export class PurchaseService {
   private static initialized = false;
   private static products: Product[] = [];
@@ -72,70 +66,36 @@ export class PurchaseService {
         return false;
       }
 
-      // Try to load react-native-iap (works in local builds with native code)
-      if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        try {
-          // @ts-ignore - Optional native module
-          const iapModule = require('react-native-iap');
-          
-          if (iapModule && typeof iapModule.initConnection === 'function') {
-            RNIap = iapModule;
-            console.log('[IAP] react-native-iap loaded successfully');
-          } else {
-            console.log('[IAP] react-native-iap module structure invalid - using placeholder mode');
-            return this.initializePlaceholder();
-          }
-        } catch (e: any) {
-          // Module not available - this happens in Expo Go or if native code isn't built
-          console.log('[IAP] react-native-iap not available - using placeholder mode');
-          console.log('[IAP] Build locally with: npx expo run:android');
-          return this.initializePlaceholder();
-        }
-      } else {
-        return this.initializePlaceholder();
-      }
+      // Initialize connection to Google Play / App Store
+      await RNIap.initConnection();
+      console.log('[IAP] Connected to store');
 
-      // Initialize connection to store
-      if (!RNIap) {
-        return this.initializePlaceholder();
-      }
-      
-      try {
-        const connection = await RNIap.initConnection();
-        console.log('[IAP] Connection result:', connection);
-      } catch (e: any) {
-        console.warn('[IAP] Failed to initialize connection:', e?.message || e);
-        return this.initializePlaceholder();
-      }
-
-      // Get subscriptions from store
-      if (!RNIap || typeof RNIap.getSubscriptions !== 'function') {
-        return this.initializePlaceholder();
-      }
-      
+      // Get available products
       const productIds = [PRODUCT_IDS.PREMIUM_MONTHLY].filter(Boolean) as string[];
       
-      try {
-        const subscriptions = await RNIap.getSubscriptions({ skus: productIds });
-        console.log('[IAP] Subscriptions:', subscriptions);
-        
-        if (subscriptions && subscriptions.length > 0) {
-          this.products = subscriptions.map((sub: any) => ({
-            productId: sub.productId,
-            title: sub.title || 'Premium Monthly',
-            description: sub.description || 'Unlock all premium features',
-            price: sub.localizedPrice || '$1.99',
-            priceAmountMicros: parseInt(sub.price || '1990000'),
-            priceCurrencyCode: sub.currency || 'USD',
-          }));
-        } else {
-          // No products found, use placeholder
-          return this.initializePlaceholder();
-        }
-      } catch (productError: any) {
-        console.warn('[IAP] Could not fetch products:', productError?.message || productError);
-        // Use placeholder products
-        return this.initializePlaceholder();
+      const products = await RNIap.getProducts({ skus: productIds });
+      console.log('[IAP] Available products:', products);
+
+      if (products && products.length > 0) {
+        this.products = products.map((product: any) => ({
+          productId: product.productId,
+          title: product.title || 'Premium Monthly',
+          description: product.description || 'Unlock all premium features',
+          price: product.localizedPrice || '$1.99',
+          priceAmountMicros: product.priceAmountMicros || 1990000,
+          priceCurrencyCode: product.currency || 'USD',
+        }));
+      } else {
+        console.warn('[IAP] No products found in store');
+        // Use placeholder products for development
+        this.products = [{
+          productId: PRODUCT_IDS.PREMIUM_MONTHLY || 'premium_monthly_199_android',
+          title: 'Premium Monthly',
+          description: 'Unlock all premium features',
+          price: '$1.99',
+          priceAmountMicros: 1990000,
+          priceCurrencyCode: 'USD',
+        }];
       }
 
       // Set up purchase listeners
@@ -145,71 +105,42 @@ export class PurchaseService {
       console.log('[IAP] Initialized successfully with', this.products.length, 'products');
       return true;
     } catch (error: any) {
-      console.warn('[IAP] Initialization error:', error.message);
-      return this.initializePlaceholder();
+      console.error('[IAP] Initialization error:', error.message);
+      return false;
     }
-  }
-
-  /**
-   * Initialize with placeholder (fallback)
-   */
-  private static initializePlaceholder(): boolean {
-    this.products = [
-      {
-        productId: PRODUCT_IDS.PREMIUM_MONTHLY || 'premium_monthly_199_android',
-        title: 'Premium Monthly',
-        description: 'Unlock all premium features',
-        price: '$1.99',
-        priceAmountMicros: 1990000,
-        priceCurrencyCode: 'USD',
-      },
-    ];
-    this.initialized = true;
-    console.log('[IAP] Initialized in placeholder mode');
-    return true;
   }
 
   /**
    * Set up listeners for purchase events
    */
   private static setupPurchaseListeners() {
-    if (!RNIap || typeof RNIap.purchaseUpdatedListener !== 'function') {
-      console.warn('[IAP] Cannot setup listeners - module not available');
-      return;
-    }
-
-    // Listen for successful purchases
+    // Listen for purchase updates
     this.purchaseUpdateSubscription = RNIap.purchaseUpdatedListener(
-      async (purchase: any) => {
+      async (purchase: RNIap.Purchase) => {
         console.log('[IAP] Purchase updated:', purchase);
         
-        const receipt = purchase.transactionReceipt;
-        if (receipt) {
-          try {
-            // Verify and process the purchase
-            await this.processPurchase(purchase);
-            
-            // Acknowledge the purchase (Android requirement)
-            if (Platform.OS === 'android' && !purchase.isAcknowledgedAndroid) {
-              await RNIap?.acknowledgePurchaseAndroid({ token: purchase.purchaseToken });
-            }
-            
-            // Finish the transaction
-            await RNIap?.finishTransaction({ purchase, isConsumable: false });
-            
-            this.emit({ type: 'PURCHASE_SUCCESS', productId: purchase.productId });
-          } catch (error: any) {
-            console.error('[IAP] Error processing purchase:', error);
-            this.emit({ type: 'PURCHASE_FAILED', error: error.message });
+        try {
+          // Acknowledge the purchase (required for Android)
+          if (Platform.OS === 'android') {
+            await RNIap.acknowledgePurchaseAndroid(purchase.purchaseToken);
           }
+
+          // Update user premium status in Supabase
+          if (this.currentUserId) {
+            await this.updateUserPremiumStatus(true);
+            this.emit({ type: 'PURCHASE_SUCCESS', productId: purchase.productId });
+          }
+        } catch (error: any) {
+          console.error('[IAP] Error processing purchase:', error);
+          this.emit({ type: 'PURCHASE_FAILED', error: error.message });
         }
       }
     );
 
     // Listen for purchase errors
     this.purchaseErrorSubscription = RNIap.purchaseErrorListener(
-      (error: any) => {
-        console.log('[IAP] Purchase error:', error);
+      (error: RNIap.PurchaseError) => {
+        console.error('[IAP] Purchase error:', error);
         
         if (error.code === 'E_USER_CANCELLED') {
           this.emit({ type: 'PURCHASE_CANCELED' });
@@ -221,20 +152,17 @@ export class PurchaseService {
   }
 
   /**
-   * Process a successful purchase
+   * Update user premium status in Supabase
    */
-  private static async processPurchase(purchase: any) {
-    if (!this.currentUserId) {
-      throw new Error('No user ID set for purchase');
-    }
+  private static async updateUserPremiumStatus(isPremium: boolean) {
+    if (!this.currentUserId) return;
 
-    // Update user to premium in Supabase
     const { error } = await supabase
       .from('users')
       .update({
-        is_premium: true,
-        premium_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-        premium_transaction_id: purchase.transactionId || purchase.orderId,
+        is_premium: isPremium,
+        premium_until: isPremium ? new Date('2099-12-31').toISOString() : null,
+        updated_at: new Date().toISOString(),
       })
       .eq('id', this.currentUserId);
 
@@ -243,21 +171,7 @@ export class PurchaseService {
       throw error;
     }
 
-    // Record the payment in payments table
-    await supabase.from('payments').insert({
-      user_id: this.currentUserId,
-      amount_cents: 199,
-      currency: 'USD',
-      status: 'succeeded',
-      provider: Platform.OS === 'ios' ? 'apple' : 'google',
-      product: purchase.productId,
-      metadata: {
-        transaction_id: purchase.transactionId || purchase.orderId,
-        purchase_token: purchase.purchaseToken,
-      },
-    });
-
-    console.log('[IAP] Successfully upgraded user to premium');
+    console.log('[IAP] User premium status updated:', isPremium);
   }
 
   /**
@@ -297,20 +211,7 @@ export class PurchaseService {
         }
       }
 
-      // Store user ID for processing
       this.currentUserId = userId;
-
-      // Check if react-native-iap is available
-      if (!RNIap || typeof RNIap.requestSubscription !== 'function') {
-        // Show placeholder message
-        Alert.alert(
-          'Test Mode',
-          'Real payments require publishing to Google Play. Use "Skip Payment" button to test premium features.',
-          [{ text: 'OK' }]
-        );
-        this.emit({ type: 'PURCHASE_CANCELED' });
-        return { success: false, error: 'IAP not available in development' };
-      }
 
       const productId = PRODUCT_IDS.PREMIUM_MONTHLY;
       if (!productId) {
@@ -322,10 +223,7 @@ export class PurchaseService {
       // Request the subscription purchase
       await RNIap.requestSubscription({
         sku: productId,
-        // For Android, you need to specify the offer token for subscriptions
-        ...(Platform.OS === 'android' && {
-          subscriptionOffers: [{ sku: productId, offerToken: '' }],
-        }),
+        andDangerouslyFinishTransactionAutomaticallyIOS: false,
       });
 
       return { success: true };
@@ -362,34 +260,19 @@ export class PurchaseService {
         await this.initialize();
       }
 
-      if (!RNIap || typeof RNIap.getAvailablePurchases !== 'function') {
-        Alert.alert(
-          'Test Mode',
-          'Restore purchases is not available in development mode.',
-          [{ text: 'OK' }]
-        );
-        this.emit({ type: 'RESTORE_SUCCESS', restored: false });
-        return { success: true, restored: false };
-      }
-
       console.log('[IAP] Restoring purchases...');
-      
+
+      // Get available purchases
       const purchases = await RNIap.getAvailablePurchases();
       console.log('[IAP] Available purchases:', purchases);
-      
-      // Check if user has any premium purchases
+
+      // Check if user has premium subscription
       const hasPremium = purchases.some(
-        (p: any) => p.productId === PRODUCT_IDS.PREMIUM_MONTHLY
+        (purchase: RNIap.Purchase) => purchase.productId === PRODUCT_IDS.PREMIUM_MONTHLY
       );
 
-      if (hasPremium) {
-        // Process the restoration
-        const latestPurchase = purchases.find(
-          (p: any) => p.productId === PRODUCT_IDS.PREMIUM_MONTHLY
-        );
-        if (latestPurchase && this.currentUserId) {
-          await this.processPurchase(latestPurchase);
-        }
+      if (hasPremium && this.currentUserId) {
+        await this.updateUserPremiumStatus(true);
       }
 
       this.emit({ type: 'RESTORE_SUCCESS', restored: hasPremium });
@@ -452,27 +335,34 @@ export class PurchaseService {
   }
 
   /**
-   * Disconnect from store (call when app closes)
+   * Set user ID (for tracking)
    */
-  static async disconnect() {
-    try {
-      if (this.purchaseUpdateSubscription) {
-        this.purchaseUpdateSubscription.remove();
-        this.purchaseUpdateSubscription = null;
-      }
-      if (this.purchaseErrorSubscription) {
-        this.purchaseErrorSubscription.remove();
-        this.purchaseErrorSubscription = null;
-      }
-      
-      if (RNIap) {
-        await RNIap.endConnection();
-      }
-      
-      this.initialized = false;
-      console.log('[IAP] Disconnected');
-    } catch (error) {
-      console.warn('[IAP] Error disconnecting:', error);
+  static async setUserId(userId: string) {
+    this.currentUserId = userId;
+    console.log('[IAP] User ID set:', userId);
+  }
+
+  /**
+   * Log out user
+   */
+  static async logoutUser() {
+    this.currentUserId = null;
+    console.log('[IAP] User logged out');
+  }
+
+  /**
+   * Clean up listeners
+   */
+  static async cleanup() {
+    if (this.purchaseUpdateSubscription) {
+      this.purchaseUpdateSubscription.remove();
+      this.purchaseUpdateSubscription = null;
     }
+    if (this.purchaseErrorSubscription) {
+      this.purchaseErrorSubscription.remove();
+      this.purchaseErrorSubscription = null;
+    }
+    await RNIap.endConnection();
+    this.initialized = false;
   }
 }

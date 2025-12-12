@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "partner-productivity-app",
-    "slug": "partner-productivity-app",
-    "version": "1.0.0",
+    "name": "Mali Match",
+    "slug": "mali-match",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -66,7 +66,7 @@
         }
       ]
     ],
-    "scheme": "partner-productivity-app",
+    "scheme": "mali-match",
     "notification": {
       "color": "#ffffff",
       "androidMode": "default",

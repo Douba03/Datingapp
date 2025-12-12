@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ export default function LoginScreen() {
   const { signIn, signUp } = useAuth();
   const router = useRouter();
   const { colors } = useTheme();
+  const passwordInputRef = useRef<TextInput>(null);
 
   const handleAuth = async () => {
     // Clear any previous errors
@@ -192,9 +193,14 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <View style={styles.content}>
           {/* Logo & App Name */}
           <View style={styles.logoContainer}>
@@ -223,6 +229,12 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              editable={!loading}
+              onSubmitEditing={() => {
+                passwordInputRef.current?.focus();
+              }}
             />
             
             {errorType === 'email' && (
@@ -232,6 +244,7 @@ export default function LoginScreen() {
             {!isForgotPassword && (
               <>
                 <TextInput
+                  ref={passwordInputRef}
                   style={[styles.input, errorType === 'password' && styles.inputError]}
                   placeholder="Password"
                   value={password}
@@ -244,6 +257,10 @@ export default function LoginScreen() {
                   }}
                   secureTextEntry
                   autoCapitalize="none"
+                  returnKeyType="done"
+                  blurOnSubmit={true}
+                  editable={!loading}
+                  onSubmitEditing={handleAuth}
                 />
                 
                 {errorType === 'password' && (

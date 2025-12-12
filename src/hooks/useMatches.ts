@@ -284,7 +284,9 @@ export function useMatches() {
       if (!swipeCounter) {
         await fetchSwipeCounter();
       }
-      if (swipeCounter && swipeCounter.remaining <= 0) {
+      
+      // Premium users have unlimited swipes - skip the counter check
+      if (!user.is_premium && swipeCounter && swipeCounter.remaining <= 0) {
         return { error: new Error('No swipes left') };
       }
 

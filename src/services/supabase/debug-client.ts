@@ -46,7 +46,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
   global: {
     headers: {
-      'x-client-info': 'partner-productivity-app',
+      'x-client-info': 'mali-match',
     },
   },
   realtime: {

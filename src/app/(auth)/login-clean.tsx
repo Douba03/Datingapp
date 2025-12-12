@@ -60,7 +60,7 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Partner Productivity</Text>
+        <Text style={styles.title}>Mali Match</Text>
         <Text style={styles.subtitle}>
           {isSignUp ? 'Create your account' : 'Welcome back'}
         </Text>

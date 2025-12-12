@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../services/supabase/client';
 import { useAuth } from './useAuth';
 import { OnboardingData } from '../contexts/OnboardingContext';
+import { locationToPoint } from '../utils/location';
 
 export function useProfile() {
   const { user } = useAuth();
@@ -72,7 +73,7 @@ export function useProfile() {
           primary_photo_idx: 0,
           city: onboardingData.city || 'Unknown',
           country: onboardingData.country || 'Unknown',
-          location: onboardingData.location || null,
+          location: locationToPoint(onboardingData.location),
           interests: onboardingData.interests || [],
           is_verified: false,
         })

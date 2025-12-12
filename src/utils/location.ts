@@ -82,3 +82,58 @@ export function getDistanceRange(minDistance: number, maxDistance: number): stri
   }
   return `${formatDistance(minDistance)} - ${formatDistance(maxDistance)}`;
 }
+
+/**
+ * Convert location object to PostGIS point format
+ * Supabase/PostgreSQL expects: (longitude,latitude) with comma
+ * @param location Location object with lat and lng
+ * @returns PostGIS point string format: (lng,lat)
+ */
+export function locationToPoint(location: Location | null | undefined): string | null {
+  if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') {
+    return null;
+  }
+  // PostgreSQL point format: (longitude,latitude) - note comma and parentheses
+  return `(${location.lng},${location.lat})`;
+}
+
+/**
+ * Convert PostGIS point string to Location object
+ * Handles multiple formats: (lng,lat), POINT(lng lat), Point(lng,lat), etc.
+ * @param point PostGIS point string (e.g., "(13.476373,59.534003)" or "POINT(13.476373 59.534003)")
+ * @returns Location object or null
+ */
+export function pointToLocation(point: string | null | undefined): Location | null {
+  if (!point || typeof point !== 'string') {
+    return null;
+  }
+  
+  // Try format: (lng,lat) - most common
+  let match = point.match(/\(([\d.-]+),([\d.-]+)\)/);
+  if (match) {
+    return {
+      lng: parseFloat(match[1]),
+      lat: parseFloat(match[2]),
+    };
+  }
+  
+  // Try format: POINT(lng lat) - WKT format
+  match = point.match(/POINT\(([\d.-]+)\s+([\d.-]+)\)/i);
+  if (match) {
+    return {
+      lng: parseFloat(match[1]),
+      lat: parseFloat(match[2]),
+    };
+  }
+  
+  // Try format: Point(lng,lat) or Point(lng lat)
+  match = point.match(/Point\(([\d.-]+)[,\s]+([\d.-]+)\)/i);
+  if (match) {
+    return {
+      lng: parseFloat(match[1]),
+      lat: parseFloat(match[2]),
+    };
+  }
+  
+  return null;
+}
