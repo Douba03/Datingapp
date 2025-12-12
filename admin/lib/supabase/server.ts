@@ -45,7 +45,6 @@ export async function isAdmin(userId: string): Promise<boolean> {
 
     console.log("[isAdmin] User email:", user.user.email);
     console.log("[isAdmin] User app_metadata:", JSON.stringify(user.user.app_metadata));
-    console.log("[isAdmin] User raw_app_meta_data:", JSON.stringify(user.user.raw_app_meta_data));
 
     // Check if email is in ADMIN_EMAILS env var
     const adminEmailsEnv = process.env.ADMIN_EMAILS || "";
