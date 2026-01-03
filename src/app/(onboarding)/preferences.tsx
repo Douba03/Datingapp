@@ -19,10 +19,10 @@ export default function PreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data, updateData } = useOnboarding();
-  const [seekingGenders, setSeekingGenders] = useState<string[]>([]);
+  const [seekingGenders, setSeekingGenders] = useState<string[]>(data.seekingGenders || []);
   const [ageRange, setAgeRange] = useState({ min: data.ageMin || 22, max: data.ageMax || 35 });
   const [maxDistance, setMaxDistance] = useState(data.maxDistance || 50);
-  const [relationshipIntent, setRelationshipIntent] = useState<string | null>(null);
+  const [relationshipIntent, setRelationshipIntent] = useState<string | null>(data.relationshipIntent || null);
 
   const genderOptions = [
     { value: 'man', label: 'Men', icon: 'male', color: '#4A90D9' },

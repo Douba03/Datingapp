@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, ScrollView, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface ReportUserModalProps {
   visible: boolean;
@@ -19,6 +20,7 @@ const reportReasons = [
 ];
 
 export function ReportUserModal({ visible, userName, onReport, onCancel }: ReportUserModalProps) {
+  const { colors, isDarkMode } = useTheme();
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [details, setDetails] = useState('');
   const [step, setStep] = useState<'select' | 'details'>('select');
@@ -60,7 +62,7 @@ export function ReportUserModal({ visible, userName, onReport, onCancel }: Repor
       onRequestClose={handleCancel}
     >
       <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
           {/* Orange Gradient Top Border */}
           <View style={styles.topBorder} />
           
@@ -74,10 +76,10 @@ export function ReportUserModal({ visible, userName, onReport, onCancel }: Repor
           {step === 'select' ? (
             <>
               {/* Title */}
-              <Text style={styles.title}>Report User</Text>
+              <Text style={[styles.title, { color: colors.text }]}>Report User</Text>
               
               {/* Subtitle */}
-              <Text style={styles.subtitle}>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Why are you reporting <Text style={styles.userName}>{userName}</Text>?
               </Text>
 
@@ -89,7 +91,7 @@ export function ReportUserModal({ visible, userName, onReport, onCancel }: Repor
                 {reportReasons.map((reason) => (
                   <TouchableOpacity
                     key={reason.key}
-                    style={styles.reasonCard}
+                    style={[styles.reasonCard, { backgroundColor: isDarkMode ? colors.background : '#F9FAFB', borderColor: colors.border }]}
                     onPress={() => handleReasonSelect(reason.key)}
                     activeOpacity={0.7}
                   >
@@ -97,37 +99,37 @@ export function ReportUserModal({ visible, userName, onReport, onCancel }: Repor
                       <Ionicons name={reason.icon} size={24} color={reason.color} />
                     </View>
                     <View style={styles.reasonContent}>
-                      <Text style={styles.reasonLabel}>{reason.label}</Text>
-                      <Text style={styles.reasonDescription}>{reason.description}</Text>
+                      <Text style={[styles.reasonLabel, { color: colors.text }]}>{reason.label}</Text>
+                      <Text style={[styles.reasonDescription, { color: colors.textSecondary }]}>{reason.description}</Text>
                     </View>
-                    <Text style={styles.reasonArrow}>›</Text>
+                    <Text style={[styles.reasonArrow, { color: colors.textSecondary }]}>›</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
 
               {/* Info Box */}
-              <View style={styles.infoBox}>
+              <View style={[styles.infoBox, { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' }]}>
                 <Text style={styles.infoIcon}>🔒</Text>
-                <Text style={styles.infoText}>
+                <Text style={[styles.infoText, { color: isDarkMode ? colors.primary : '#1E40AF' }]}>
                   Your report is anonymous and will be reviewed by our team. We take all reports seriously.
                 </Text>
               </View>
 
               {/* Cancel Button */}
               <TouchableOpacity 
-                style={styles.cancelButton}
+                style={[styles.cancelButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 onPress={handleCancel}
                 activeOpacity={0.8}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
               {/* Details Step */}
-              <Text style={styles.title}>Add Details</Text>
+              <Text style={[styles.title, { color: colors.text }]}>Add Details</Text>
               
-              <Text style={styles.subtitle}>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Help us understand what happened with <Text style={styles.userName}>{userName}</Text>
               </Text>
 

@@ -153,7 +153,8 @@ export default function BasicInfoScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="on-drag"
         >
           <View style={styles.content}>
             {/* Title */}
@@ -300,7 +301,7 @@ export default function BasicInfoScreen() {
           <TouchableOpacity
             style={styles.continueButton}
             onPress={validateAndContinue}
-            activeOpacity={0.9}
+            activeOpacity={0.8}
           >
             <LinearGradient
               colors={[colors.primary, colors.primaryDark]}
@@ -532,9 +533,11 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 24,
     paddingTop: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    zIndex: 100,
+    elevation: 10,
   },
   continueButton: {
     borderRadius: 16,

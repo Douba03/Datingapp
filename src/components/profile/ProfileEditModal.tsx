@@ -8,15 +8,15 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Image,
   ActivityIndicator,
   SafeAreaView,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Button } from '../ui/Button';
-import { colors } from '../theme/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { usePhotoUpload } from '../../hooks/usePhotoUpload';
 
 interface ProfileEditModalProps {
@@ -27,6 +27,8 @@ interface ProfileEditModalProps {
 }
 
 export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileEditModalProps) {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   const { pickAndUploadPhoto, uploading } = usePhotoUpload();
   const [formData, setFormData] = useState({
     first_name: '',
@@ -39,6 +41,7 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
     age_max: 100,
     max_distance_km: 50,
     relationship_intent: 'not_sure',
+    seeking_genders: [] as string[],
   });
   const [loading, setLoading] = useState(false);
   const [showInterestSelector, setShowInterestSelector] = useState(false);
@@ -74,6 +77,7 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
     if (profile) {
       const ageMin = profile.preferences?.age_min || 18;
       const ageMax = profile.preferences?.age_max || 100;
+      const seekingGenders = profile.preferences?.seeking_genders || [];
       setFormData({
         first_name: profile.first_name || '',
         bio: profile.bio || '',
@@ -85,7 +89,9 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
         age_max: ageMax,
         max_distance_km: profile.preferences?.max_distance_km || 50,
         relationship_intent: profile.preferences?.relationship_intent || 'not_sure',
+        seeking_genders: Array.isArray(seekingGenders) ? seekingGenders : [],
       });
+      console.log('[ProfileEditModal] Loaded seeking_genders:', seekingGenders);
       setAgeMinText(String(ageMin));
       setAgeMaxText(String(ageMax));
     }
@@ -97,7 +103,7 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
       console.log('[ProfileEditModal] Saving form data:', formData);
       await onSave(formData);
       console.log('[ProfileEditModal] Save successful');
-      onClose();
+      // Parent handles closing the modal now
     } catch (error) {
       console.error('[ProfileEditModal] Save error:', error);
       const errMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -243,7 +249,13 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
             <View style={styles.photosContainer}>
               {formData.photos.map((photo, index) => (
                 <View key={index} style={styles.photoContainer}>
-                  <Image source={{ uri: photo }} style={styles.photo} />
+                  <Image 
+                    source={{ uri: photo }} 
+                    style={styles.photo}
+                    contentFit="cover"
+                    transition={150}
+                    cachePolicy="memory-disk"
+                  />
                   {index === 0 && (
                     <View style={styles.primaryBadge}>
                       <Text style={styles.primaryBadgeText}>Primary</Text>
@@ -404,6 +416,71 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Dating Preferences</Text>
             
+            {/* Gender Interest */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>I'm interested in...</Text>
+              <View style={styles.genderOptions}>
+                <TouchableOpacity
+                  style={[
+                    styles.genderOption,
+                    formData.seeking_genders.includes('man') && styles.genderOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setFormData(prev => ({
+                      ...prev,
+                      seeking_genders: prev.seeking_genders.includes('man')
+                        ? prev.seeking_genders.filter(g => g !== 'man')
+                        : [...prev.seeking_genders, 'man']
+                    }));
+                  }}
+                >
+                  <Ionicons 
+                    name="male" 
+                    size={24} 
+                    color={formData.seeking_genders.includes('man') ? '#4A90D9' : colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.genderOptionText,
+                    formData.seeking_genders.includes('man') && { color: '#4A90D9', fontWeight: '700' }
+                  ]}>Men</Text>
+                  {formData.seeking_genders.includes('man') && (
+                    <Ionicons name="checkmark-circle" size={18} color="#4A90D9" />
+                  )}
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.genderOption,
+                    formData.seeking_genders.includes('woman') && styles.genderOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setFormData(prev => ({
+                      ...prev,
+                      seeking_genders: prev.seeking_genders.includes('woman')
+                        ? prev.seeking_genders.filter(g => g !== 'woman')
+                        : [...prev.seeking_genders, 'woman']
+                    }));
+                  }}
+                >
+                  <Ionicons 
+                    name="female" 
+                    size={24} 
+                    color={formData.seeking_genders.includes('woman') ? '#FF6B9D' : colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.genderOptionText,
+                    formData.seeking_genders.includes('woman') && { color: '#FF6B9D', fontWeight: '700' }
+                  ]}>Women</Text>
+                  {formData.seeking_genders.includes('woman') && (
+                    <Ionicons name="checkmark-circle" size={18} color="#FF6B9D" />
+                  )}
+                </TouchableOpacity>
+              </View>
+              {formData.seeking_genders.length === 0 && (
+                <Text style={styles.warningText}>⚠️ Select at least one to see profiles</Text>
+              )}
+            </View>
+            
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Age Range: {formData.age_min} - {formData.age_max}</Text>
               <View style={styles.rangeContainer}>
@@ -495,7 +572,7 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -781,5 +858,38 @@ const styles = StyleSheet.create({
   },
   selectedRelationshipOptionText: {
     color: '#fff',
+  },
+  genderOptions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  genderOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  genderOptionSelected: {
+    borderColor: colors.primary,
+    backgroundColor: `${colors.primary}10`,
+  },
+  genderOptionText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  warningText: {
+    fontSize: 13,
+    color: '#F59E0B',
+    marginTop: 8,
+    textAlign: 'center',
   },
 });

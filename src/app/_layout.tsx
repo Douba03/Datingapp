@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { Stack, Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth, AuthProvider } from '../hooks/useAuth';
 import { View, Text, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { notificationService } from '../services/notifications';
 import { supabase } from '../services/supabase/client';
 import { PurchaseService } from '../services/iap/purchaseService';
@@ -42,27 +43,24 @@ function RootLayoutContent() {
     // Cleanup on unmount
     return () => {
       if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        PurchaseService.disconnect().catch((error) => {
+        PurchaseService.cleanup().catch((error) => {
           // Non-critical error - cleanup failure is OK
-          console.warn('[IAP] Failed to disconnect (non-critical):', error);
+          console.warn('[IAP] Failed to cleanup (non-critical):', error);
         });
       }
     };
   }, []);
 
-  // Test push notifications when user is authenticated
+  // Register for push notifications when user is authenticated
   useEffect(() => {
     if (user && session) {
-      const testPushNotifications = async () => {
+      const registerPushNotifications = async () => {
         try {
-          console.log('🧪 Testing Push Notifications...');
-          
-          // Test 1: Register for push notifications
+          // Register for push notifications
           const token = await notificationService.registerForPushNotifications();
-          console.log('✅ Push token:', token);
           
           if (token) {
-            // Test 2: Save token to database
+            // Save token to database for real notifications (likes, messages, matches)
             const { error } = await supabase
               .from('user_push_tokens')
               .upsert({
@@ -74,30 +72,17 @@ function RootLayoutContent() {
               });
             
             if (error) {
-              console.log('❌ Error saving token:', error.message);
+              console.warn('[Push] Error saving token:', error.message);
             } else {
-              console.log('✅ Token saved to database');
+              console.log('[Push] Token registered successfully');
             }
           }
-          
-          // Test 3: Send local notification
-          await notificationService.sendLocalNotification({
-            type: 'system',
-            title: 'Test Notification',
-            body: 'Push notifications are working!',
-          });
-          console.log('✅ Test notification sent');
-          
-          // Test 4: Check notification permissions
-          const enabled = await notificationService.areNotificationsEnabled();
-          console.log('✅ Permissions:', enabled ? 'Granted' : 'Denied');
-          
         } catch (error) {
-          console.error('❌ Test failed:', error);
+          console.warn('[Push] Registration failed:', error);
         }
       };
       
-      testPushNotifications();
+      registerPushNotifications();
     }
   }, [user, session]);
 
@@ -197,10 +182,14 @@ function RootLayoutContent() {
 // Main export wraps with providers
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <RootLayoutContent />
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <RootLayoutContent />
+          </ThemeProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -14,12 +14,11 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../services/supabase/client';
-import { colors } from '../components/theme/colors';
-import { Stack } from 'expo-router';
+import { useTheme } from '../contexts/ThemeContext';
 
 type TicketCategory = 'technical' | 'account' | 'billing' | 'safety' | 'feedback' | 'other';
 
@@ -72,6 +71,8 @@ const CATEGORIES: CategoryOption[] = [
 export default function SupportTicketScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
 
   const [subject, setSubject] = useState('');
   const [category, setCategory] = useState<TicketCategory>('other');
@@ -344,7 +345,7 @@ export default function SupportTicketScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

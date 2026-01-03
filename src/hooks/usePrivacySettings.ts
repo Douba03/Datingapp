@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase/client';
 import { useAuth } from './useAuth';
+import { withTimeout } from '../utils/supabaseHelpers';
+
+const QUERY_TIMEOUT = 8000; // 8 seconds
 
 export interface PrivacySettings {
   show_online_status: boolean;
@@ -28,11 +31,20 @@ export function usePrivacySettings() {
     try {
       console.log('[PrivacySettings] Fetching settings for user:', user.id);
       
-      const { data, error: fetchError } = await supabase
-        .from('privacy_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      const queryPromise = new Promise<{ data: any; error: any }>((resolve) => {
+        supabase
+          .from('privacy_settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .single()
+          .then(r => resolve(r));
+      });
+      
+      const { data, error: fetchError } = await withTimeout(
+        queryPromise,
+        QUERY_TIMEOUT,
+        'Loading privacy settings timed out'
+      );
 
       if (fetchError) {
         // If no settings exist, create default ones

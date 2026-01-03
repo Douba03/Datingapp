@@ -5,10 +5,10 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Alert,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -44,18 +44,35 @@ export default function LikesYouScreen() {
 
     try {
       setLoading(true);
+      console.log('[LikesYou] Fetching likes for user:', user.id);
+
+      // First, get users that current user has already swiped on (to exclude them)
+      const { data: mySwipes } = await supabase
+        .from('swipes')
+        .select('target_user_id')
+        .eq('swiper_user_id', user.id);
+      
+      const alreadySwipedIds = mySwipes?.map(s => s.target_user_id) || [];
 
       // Get all users who liked current user
-      const { data: swipesData, error: swipesError } = await supabase
+      let query = supabase
         .from('swipes')
         .select('swiper_user_id, created_at, action')
         .eq('target_user_id', user.id)
         .in('action', ['like', 'superlike'])
         .order('created_at', { ascending: false });
+      
+      // Exclude users that current user has already swiped on (they're either matched or passed)
+      if (alreadySwipedIds.length > 0) {
+        query = query.not('swiper_user_id', 'in', `(${alreadySwipedIds.join(',')})`);
+      }
+
+      const { data: swipesData, error: swipesError } = await query;
 
       if (swipesError) {
         console.error('[LikesYou] Error fetching swipes:', swipesError);
-        Alert.alert('Error', 'Failed to load likes');
+        // Don't show alert for common errors, just log
+        setLikedUsers([]);
         setLoading(false);
         return;
       }
@@ -78,7 +95,15 @@ export default function LikesYouScreen() {
 
       if (profilesError) {
         console.error('[LikesYou] Error fetching profiles:', profilesError);
-        Alert.alert('Error', 'Failed to load profiles');
+        // Continue with empty profiles instead of crashing
+        setLikedUsers([]);
+        setLoading(false);
+        return;
+      }
+      
+      if (!profilesData || profilesData.length === 0) {
+        console.log('[LikesYou] No profiles found for likers');
+        setLikedUsers([]);
         setLoading(false);
         return;
       }
@@ -202,7 +227,9 @@ export default function LikesYouScreen() {
                     <Image
                       source={{ uri: likedUser.photos[0] }}
                       style={styles.blurredImage}
+                      contentFit="cover"
                       blurRadius={25}
+                      cachePolicy="memory-disk"
                     />
                   ) : (
                     <View style={[styles.blurredImage, styles.placeholderBlur]}>
@@ -360,7 +387,9 @@ function LikedUserCard({ user, onPress }: { user: any; onPress: () => void }) {
           <Image
             source={{ uri: user.photos[0] }}
             style={styles.userPhoto}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={150}
+            cachePolicy="memory-disk"
           />
         ) : (
           <View style={styles.placeholderPhoto}>

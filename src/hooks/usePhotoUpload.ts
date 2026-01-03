@@ -107,11 +107,10 @@ export function usePhotoUpload() {
         return { url: null, error: new Error('Camera roll permission denied') };
       }
 
-      // Pick image
+      // Pick image - no editing for faster experience
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
+        mediaTypes: ['images'],
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -127,9 +126,99 @@ export function usePhotoUpload() {
     }
   };
 
+  const takeAndUploadPhoto = async (): Promise<{ url: string | null; error: Error | null }> => {
+    try {
+      // Check if camera is available (not available on simulator)
+      const cameraAvailable = await ImagePicker.getCameraPermissionsAsync();
+      
+      // Request camera permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        return { url: null, error: new Error('Camera permission denied') };
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (result.canceled) {
+        return { url: null, error: null };
+      }
+
+      // Upload the captured photo
+      return await uploadPhoto(result.assets[0].uri);
+    } catch (error: any) {
+      console.error('[usePhotoUpload] Take and upload error:', error);
+      // Handle simulator case
+      if (error?.message?.includes('simulator') || error?.message?.includes('Camera not available')) {
+        return { url: null, error: new Error('Camera is not available on the simulator. Please use a real device.') };
+      }
+      return { url: null, error: error as Error };
+    }
+  };
+
+  // Pick photo without uploading (for preview)
+  const pickPhoto = async (): Promise<{ uri: string | null; error: Error | null }> => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        return { uri: null, error: new Error('Camera roll permission denied') };
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (result.canceled) {
+        return { uri: null, error: null };
+      }
+
+      return { uri: result.assets[0].uri, error: null };
+    } catch (error) {
+      console.error('[usePhotoUpload] Pick photo error:', error);
+      return { uri: null, error: error as Error };
+    }
+  };
+
+  // Take photo without uploading (for preview)
+  const takePhoto = async (): Promise<{ uri: string | null; error: Error | null }> => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        return { uri: null, error: new Error('Camera permission denied') };
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (result.canceled) {
+        return { uri: null, error: null };
+      }
+
+      return { uri: result.assets[0].uri, error: null };
+    } catch (error: any) {
+      console.error('[usePhotoUpload] Take photo error:', error);
+      if (error?.message?.includes('simulator') || error?.message?.includes('Camera not available')) {
+        return { uri: null, error: new Error('Camera is not available on the simulator. Please use a real device.') };
+      }
+      return { uri: null, error: error as Error };
+    }
+  };
+
   return {
     uploadPhoto,
     pickAndUploadPhoto,
+    takeAndUploadPhoto,
+    pickPhoto,
+    takePhoto,
     uploading,
   };
 }

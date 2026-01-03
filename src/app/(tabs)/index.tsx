@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -29,14 +30,33 @@ const { width: screenWidth } = Dimensions.get('window');
 function DiscoverScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { colors } = useTheme();
-  const { profiles, swipeCounter, loading, swipe, canSwipe, getNextRefillTime, undoLastSwipe } = useMatches();
+  const { profiles, swipeCounter, loading, swipe, canSwipe, getNextRefillTime, undoLastSwipe, refetch } = useMatches();
   const [matchModalVisible, setMatchModalVisible] = useState(false);
   const [matchedUser, setMatchedUser] = useState<{ name: string; photo?: string } | null>(null);
   const [isSuperLikeMatch, setIsSuperLikeMatch] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [showNoSwipesModal, setShowNoSwipesModal] = useState(false);
+  const [lastSwipeDirection, setLastSwipeDirection] = useState<'left' | 'right' | 'top' | 'bottom' | undefined>(undefined);
+
+  // Preload images for upcoming profiles to reduce loading delay
+  useEffect(() => {
+    if (profiles.length > 0) {
+      // Preload next 5 profiles' first 2 photos each
+      const imagesToPreload = profiles
+        .slice(0, 5)
+        .flatMap(p => p.photos?.slice(0, 2) || [])
+        .filter(Boolean);
+      
+      // Use expo-image's prefetch with memory-disk caching
+      imagesToPreload.forEach(uri => {
+        Image.prefetch(uri, 'memory-disk').catch(() => {
+          // Silently fail - prefetch is best effort
+        });
+      });
+    }
+  }, [profiles]);
 
   const handleSwipe = async (action: 'like' | 'pass' | 'superlike') => {
     console.log(`[Discover] Button pressed: ${action}`);
@@ -57,7 +77,15 @@ function DiscoverScreen() {
     }
 
     console.log(`[Discover] Swiping ${action} on ${profile.first_name} (${profile.user_id})`);
-    console.log(`[Discover] Profile data:`, profile);
+    
+    // Set the direction for next card entry animation (opposite of swipe direction)
+    if (action === 'like') {
+      setLastSwipeDirection('left'); // Card went right, next comes from left
+    } else if (action === 'pass') {
+      setLastSwipeDirection('right'); // Card went left, next comes from right
+    } else if (action === 'superlike') {
+      setLastSwipeDirection('bottom'); // Card went up, next comes from bottom
+    }
 
     try {
       console.log(`[Discover] Calling swipe function...`);
@@ -122,15 +150,23 @@ function DiscoverScreen() {
     }
 
     try {
-      const { error } = await undoLastSwipe();
+      const { data, error } = await undoLastSwipe();
       if (error) {
-        Alert.alert('No Swipe to Undo', 'You haven\'t swiped anyone yet');
-      } else {
-        Alert.alert('Success', 'Last swipe undone!');
+        console.log('[Discover] No swipe to undo');
+        return;
       }
+      
+      // Set direction for card to come back from where it went (reverse of swipe)
+      if (data?.action === 'like') {
+        setLastSwipeDirection('right'); // Was swiped right, comes back from right
+      } else if (data?.action === 'pass') {
+        setLastSwipeDirection('left'); // Was swiped left, comes back from left
+      } else if (data?.action === 'superlike') {
+        setLastSwipeDirection('top'); // Was swiped up, comes back from top
+      }
+      // No dialog - the smooth card animation is enough feedback
     } catch (error) {
       console.error('[Discover] Error undoing swipe:', error);
-      Alert.alert('Error', 'Failed to undo swipe');
     }
   };
 
@@ -151,50 +187,108 @@ function DiscoverScreen() {
     return (
       <LinearGradient
         colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
-        style={[styles.container, { paddingTop: insets.top }]}
+        style={styles.container}
       >
-        <SimpleWarningAlert />
-        
-        {/* Swipe Counter */}
-        <View style={styles.counterRow}>
-          <SwipeCounter counter={swipeCounter} />
-        </View>
-        
-        <View style={styles.emptyContainer}>
-          <View style={[styles.emptyIconContainer, isOutOfSwipes && styles.emptyIconContainerWarning]}>
-            <Ionicons 
-              name={isOutOfSwipes ? "time-outline" : "heart-outline"} 
-              size={64} 
-              color={isOutOfSwipes ? colors.warning : colors.primary} 
-            />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            {isOutOfSwipes ? "You're Out of Swipes!" : "No More Profiles"}
-          </Text>
-          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            {isOutOfSwipes 
-              ? "Wait for your swipes to refill or\nget Premium for unlimited swipes!"
-              : "We're finding more people for you.\nCheck back soon!"
-            }
-          </Text>
-          
-          {isOutOfSwipes && (
-            <TouchableOpacity
-              style={styles.emptyPremiumButton}
-              onPress={() => router.push('/(onboarding)/payment')}
-              activeOpacity={0.9}
-            >
-              <LinearGradient
-                colors={[colors.accent, '#FFA000']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.emptyPremiumGradient}
+        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+          {/* Header - Settings style */}
+          <View style={[styles.header, { backgroundColor: colors.surface }]}>
+            <View style={styles.headerLeft}>
+              <View style={styles.logoRow}>
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryDark]}
+                  style={styles.logoContainer}
+                >
+                  <Ionicons name="heart" size={18} color="#fff" />
+                </LinearGradient>
+                <View style={styles.titleContainer}>
+                  <Text style={[styles.headerTitle, { color: colors.primary }]}>Mali Match</Text>
+                  <View style={styles.subtitleRow}>
+                    <Ionicons name="location" size={10} color={colors.textSecondary} />
+                    <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Discover nearby</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+            
+            {/* Right buttons - Premium & Profile */}
+            <View style={styles.headerRight}>
+              {/* Premium Button - only show if not premium */}
+              {!user?.is_premium && (
+                <TouchableOpacity 
+                  onPress={() => router.push('/(onboarding)/payment')}
+                  style={styles.premiumButton}
+                >
+                  <Ionicons name="diamond" size={20} color="#fff" />
+                </TouchableOpacity>
+              )}
+              
+              {/* Profile Button */}
+              <TouchableOpacity 
+                onPress={() => router.push('/(tabs)/profile')}
+                style={[styles.profileButton, { borderColor: colors.primary, backgroundColor: colors.surface }]}
               >
-                <Ionicons name="diamond" size={18} color="#fff" />
-                <Text style={styles.emptyPremiumText}>Get Premium</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
+                {profile?.photos?.[0] ? (
+                  <Image 
+                    source={{ uri: profile.photos[0] }} 
+                    style={styles.profileImage}
+                  />
+                ) : (
+                  <Ionicons name="person" size={20} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          <SimpleWarningAlert />
+          
+          <View style={styles.emptyContainer}>
+            <View style={[styles.emptyIconContainer, isOutOfSwipes && styles.emptyIconContainerWarning]}>
+              <Ionicons 
+                name={isOutOfSwipes ? "time-outline" : "heart-outline"} 
+                size={64} 
+                color={isOutOfSwipes ? colors.warning : colors.primary} 
+              />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              {isOutOfSwipes ? "You're Out of Swipes!" : "No More Profiles"}
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              {isOutOfSwipes 
+                ? "Wait for your swipes to refill or\nget Premium for unlimited swipes!"
+                : "We're finding more people for you.\nCheck back soon!"
+              }
+            </Text>
+            
+            {isOutOfSwipes && !user?.is_premium && (
+              <TouchableOpacity
+                style={styles.emptyPremiumButton}
+                onPress={() => router.push('/(onboarding)/payment')}
+                activeOpacity={0.9}
+              >
+                <LinearGradient
+                  colors={[colors.accent, '#FFA000']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.emptyPremiumGradient}
+                >
+                  <Ionicons name="diamond" size={18} color="#fff" />
+                  <Text style={styles.emptyPremiumText}>Get Premium</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+            
+            {/* Refresh button when no profiles */}
+            {!isOutOfSwipes && (
+              <TouchableOpacity
+                style={[styles.refreshButton, { borderColor: colors.primary }]}
+                onPress={() => refetch()}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh" size={18} color={colors.primary} />
+                <Text style={[styles.refreshButtonText, { color: colors.primary }]}>Check for New People</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </LinearGradient>
     );
@@ -206,6 +300,55 @@ function DiscoverScreen() {
       style={styles.container}
     >
       <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+        {/* Header - Settings style */}
+        <View style={[styles.header, { backgroundColor: colors.surface }]}>
+          <View style={styles.headerLeft}>
+            <View style={styles.logoRow}>
+              <LinearGradient
+                colors={[colors.primary, colors.primaryDark]}
+                style={styles.logoContainer}
+              >
+                <Ionicons name="heart" size={18} color="#fff" />
+              </LinearGradient>
+              <View style={styles.titleContainer}>
+                <Text style={[styles.headerTitle, { color: colors.primary }]}>Mali Match</Text>
+                <View style={styles.subtitleRow}>
+                  <Ionicons name="location" size={10} color={colors.textSecondary} />
+                  <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Discover nearby</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+          
+          {/* Right buttons - Premium & Profile */}
+          <View style={styles.headerRight}>
+            {/* Premium Button - only show if not premium */}
+            {!user?.is_premium && (
+              <TouchableOpacity 
+                onPress={() => router.push('/(onboarding)/payment')}
+                style={styles.premiumButton}
+              >
+                <Ionicons name="diamond" size={20} color="#fff" />
+              </TouchableOpacity>
+            )}
+            
+            {/* Profile Button */}
+            <TouchableOpacity 
+              onPress={() => router.push('/(tabs)/profile')}
+              style={[styles.profileButton, { borderColor: colors.primary, backgroundColor: colors.surface }]}
+            >
+              {profile?.photos?.[0] ? (
+                <Image 
+                  source={{ uri: profile.photos[0] }} 
+                  style={styles.profileImage}
+                />
+              ) : (
+                <Ionicons name="person" size={20} color={colors.primary} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+        
         <SimpleWarningAlert />
         
         {/* Match Modal */}
@@ -218,17 +361,19 @@ function DiscoverScreen() {
           isSuperLike={isSuperLikeMatch}
         />
         
-        {/* Swipe Counter Row */}
-        <View style={styles.counterRow}>
-          <SwipeCounter counter={swipeCounter} />
-        </View>
-
-        {/* Card Container */}
+        {/* Card Container with Counter Overlay */}
         <View style={styles.cardContainer}>
+          {/* Swipe Counter - positioned on top right of card */}
+          <View style={styles.counterOverlay}>
+            <SwipeCounter counter={swipeCounter} />
+          </View>
+          
           <SwipeCard
+            key={profiles[0].user_id}
             profile={profiles[0]}
             onSwipe={handleSwipe}
             onPress={handleProfilePress}
+            enterFrom={lastSwipeDirection}
           />
         </View>
 
@@ -336,6 +481,97 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    marginHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    borderRadius: 20,
+    shadowColor: '#FF6B9D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B9D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  titleContainer: {
+    flexDirection: 'column',
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  subtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  premiumButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  profileButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 2.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  profileImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
   counterRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -346,12 +582,22 @@ const styles = StyleSheet.create({
   },
   cardContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    paddingTop: 4,
+    marginTop: 0,
+    position: 'relative',
+  },
+  counterOverlay: {
+    position: 'absolute',
+    top: 16,
+    right: 24,
+    zIndex: 10,
   },
   actionButtons: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingTop: 12,
+    paddingBottom: 20,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -451,6 +697,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    borderWidth: 2,
+    marginTop: 16,
+    gap: 8,
+  },
+  refreshButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   lockedButton: {
     backgroundColor: '#f0f0f0',

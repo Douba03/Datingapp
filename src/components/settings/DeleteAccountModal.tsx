@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -23,6 +23,8 @@ interface DeleteAccountModalProps {
 }
 
 export function DeleteAccountModal({ visible, loading, onClose, onConfirm }: DeleteAccountModalProps) {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   const [confirmText, setConfirmText] = useState('');
   const isConfirmEnabled = confirmText.toLowerCase() === 'delete';
 
@@ -155,7 +157,7 @@ export function DeleteAccountModal({ visible, loading, onClose, onConfirm }: Del
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',

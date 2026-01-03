@@ -17,8 +17,20 @@ export function SwipeCounter({ counter, onRefillPress }: SwipeCounterProps) {
   const { user } = useAuth();
   const [now, setNow] = useState(Date.now());
   
+  const isPremium = user?.is_premium;
+  const isExhausted = counter?.remaining === 0;
+  const isLow = counter && counter.remaining > 0 && counter.remaining <= SWIPE_CONSTANTS.LOW_SWIPES_THRESHOLD;
+  const nextRefill = counter?.next_refill_at ? new Date(counter.next_refill_at) : null;
+
+  // Must call useEffect before any early returns
+  useEffect(() => {
+    if (isPremium || !isExhausted || !nextRefill) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [isPremium, isExhausted, nextRefill]);
+  
   // Premium users have unlimited swipes - show special badge
-  if (user?.is_premium) {
+  if (isPremium) {
     return (
       <LinearGradient
         colors={['#FFD700', '#FFA500']}
@@ -33,16 +45,6 @@ export function SwipeCounter({ counter, onRefillPress }: SwipeCounterProps) {
   }
   
   if (!counter) return null;
-
-  const isExhausted = counter.remaining === 0;
-  const isLow = counter.remaining > 0 && counter.remaining <= SWIPE_CONSTANTS.LOW_SWIPES_THRESHOLD;
-  const nextRefill = counter.next_refill_at ? new Date(counter.next_refill_at) : null;
-
-  useEffect(() => {
-    if (!isExhausted || !nextRefill) return;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [isExhausted, nextRefill]);
 
   const formatTimeUntilRefill = () => {
     if (!nextRefill) return '';

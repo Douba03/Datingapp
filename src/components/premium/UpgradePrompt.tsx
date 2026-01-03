@@ -11,7 +11,8 @@ import {
   Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
+import { colors as staticColors } from '../theme/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { PremiumBadge } from './PremiumBadge';
 
 interface UpgradePromptProps {
@@ -29,6 +30,7 @@ export function UpgradePrompt({
   trigger = 'general',
   customMessage,
 }: UpgradePromptProps) {
+  const { colors } = useTheme();
   
   const getTriggerContent = () => {
     switch (trigger) {
@@ -167,7 +169,7 @@ export function UpgradePrompt({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
           {/* Close Button */}
           <TouchableOpacity 
             style={styles.closeButton} 
@@ -203,10 +205,10 @@ export function UpgradePrompt({
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>{content.title}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{content.title}</Text>
 
           {/* Description */}
-          <Text style={styles.description}>{content.description}</Text>
+          <Text style={[styles.description, { color: colors.textSecondary }]}>{content.description}</Text>
 
           {/* Benefits List */}
           {content.benefits.length > 0 && (
@@ -218,16 +220,16 @@ export function UpgradePrompt({
                     size={20} 
                     color={colors.success} 
                   />
-                  <Text style={styles.benefitText}>{benefit}</Text>
+                  <Text style={[styles.benefitText, { color: colors.text }]}>{benefit}</Text>
                 </View>
               ))}
             </ScrollView>
           )}
 
           {/* Price */}
-          <View style={styles.priceContainer}>
-            <Text style={styles.priceAmount}>$1.99</Text>
-            <Text style={styles.pricePeriod}>per month</Text>
+          <View style={[styles.priceContainer, { borderColor: colors.border }]}>
+            <Text style={[styles.priceAmount, { color: colors.primary }]}>$1.99</Text>
+            <Text style={[styles.pricePeriod, { color: colors.textSecondary }]}>per month</Text>
           </View>
 
           {/* CTA Buttons */}
@@ -245,7 +247,7 @@ export function UpgradePrompt({
               onPress={onClose}
               activeOpacity={0.6}
             >
-              <Text style={styles.cancelButtonText}>Maybe Later</Text>
+              <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Maybe Later</Text>
             </TouchableOpacity>
           </View>
 
@@ -253,7 +255,7 @@ export function UpgradePrompt({
           <View style={styles.trustContainer}>
             <View style={styles.trustItem}>
               <Ionicons name="shield-checkmark" size={16} color={colors.textSecondary} />
-              <Text style={styles.trustText}>Cancel anytime</Text>
+              <Text style={[styles.trustText, { color: colors.textSecondary }]}>Cancel anytime</Text>
             </View>
           </View>
         </View>
@@ -267,13 +269,12 @@ const { width } = Dimensions.get('window');
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContainer: {
-    backgroundColor: colors.surface,
     borderRadius: 24,
     width: Math.min(width - 40, 400),
     maxHeight: '85%',
@@ -317,13 +318,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: colors.text,
     textAlign: 'center',
     marginBottom: 8,
   },
   description: {
     fontSize: 15,
-    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 22,
@@ -341,7 +340,6 @@ const styles = StyleSheet.create({
   benefitText: {
     flex: 1,
     fontSize: 15,
-    color: colors.text,
     lineHeight: 20,
   },
   priceContainer: {
@@ -350,27 +348,24 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: colors.border,
   },
   priceAmount: {
     fontSize: 40,
     fontWeight: '800',
-    color: colors.primary,
   },
   pricePeriod: {
     fontSize: 14,
-    color: colors.textSecondary,
   },
   buttonContainer: {
     gap: 12,
     marginBottom: 16,
   },
   upgradeButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: staticColors.primary,
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: 'center',
-    shadowColor: colors.primary,
+    shadowColor: staticColors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -386,7 +381,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButtonText: {
-    color: colors.textSecondary,
     fontSize: 15,
     fontWeight: '500',
   },
@@ -401,6 +395,5 @@ const styles = StyleSheet.create({
   },
   trustText: {
     fontSize: 13,
-    color: colors.textSecondary,
   },
 });

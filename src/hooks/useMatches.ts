@@ -1,15 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../services/supabase/client';
 import { Profile, Swipe, SwipeCounter } from '../types/user';
 import { useAuth } from './useAuth';
 import { calculateDistance, isWithinDistance } from '../utils/location';
 import { SWIPE_CONSTANTS } from '../constants/swipes';
+import { AppState, AppStateStatus } from 'react-native';
 
 export function useMatches() {
   const { user, profile } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [swipeCounter, setSwipeCounter] = useState<SwipeCounter | null>(null);
   const [loading, setLoading] = useState(true);
+  const lastFetchRef = useRef<number>(0);
+  const profilesLengthRef = useRef<number>(0);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    profilesLengthRef.current = profiles.length;
+  }, [profiles.length]);
 
   useEffect(() => {
     if (!user || !profile) return;
@@ -17,14 +25,51 @@ export function useMatches() {
     fetchSwipeCounter();
     fetchPotentialMatches();
 
-    // After onboarding, profile/preferences may be set asynchronously.
-    // Refetch once shortly after mount to avoid frozen state until manual refresh.
-    const timer = setTimeout(() => {
-      fetchSwipeCounter();
-      fetchPotentialMatches();
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, [user, profile]);
+    // Subscribe to new profiles being created
+    const profileSubscription = supabase
+      .channel('new-profiles')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'profiles' },
+        (payload) => {
+          console.log('[useMatches] New profile created:', payload.new);
+          console.log('[useMatches] Current profiles count:', profilesLengthRef.current);
+          // Always refetch when a new profile is created - especially important when we have no profiles
+          // Use ref to get current value instead of stale closure
+          if (profilesLengthRef.current === 0) {
+            console.log('[useMatches] No profiles currently shown, fetching new profiles...');
+            fetchPotentialMatches();
+          } else {
+            // Even if we have profiles, check if the new profile should be added
+            // Debounce to avoid too many fetches
+            const now = Date.now();
+            if (now - lastFetchRef.current > 5000) { // 5 seconds debounce
+              console.log('[useMatches] Refreshing to include new profile...');
+              fetchPotentialMatches();
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // Refresh when app comes to foreground (if it's been more than 30 seconds)
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        const now = Date.now();
+        if (now - lastFetchRef.current > 30000) { // 30 seconds
+          console.log('[useMatches] App came to foreground, refreshing profiles...');
+          fetchPotentialMatches();
+        }
+      }
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      profileSubscription.unsubscribe();
+      appStateSubscription.remove();
+    };
+  }, [user?.id, profile?.user_id]);
 
   const fetchSwipeCounter = async () => {
     if (!user) return;
@@ -112,6 +157,7 @@ export function useMatches() {
 
     try {
       setLoading(true);
+      lastFetchRef.current = Date.now();
       console.log('[useMatches] Fetching potential matches for user:', user.id);
       console.log('[useMatches] Current profile:', profile);
 
@@ -137,7 +183,12 @@ export function useMatches() {
       ];
 
       const swipedIds = swipedUsers?.map(s => s.target_user_id) || [];
+      console.log('[useMatches] ===== EXCLUSION LISTS =====');
+      console.log('[useMatches] Already swiped IDs count:', swipedIds.length);
       console.log('[useMatches] Already swiped IDs:', swipedIds);
+      console.log('[useMatches] Blocked IDs:', blockedIds);
+      console.log('[useMatches] Current user ID:', user.id);
+      console.log('[useMatches] ============================');
 
       // Build base query - fetch profiles and preferences separately
       // since there's no foreign key relationship defined
@@ -159,14 +210,30 @@ export function useMatches() {
       // Get all profiles first - fetch 50 at a time to reduce API calls
       const { data: profilesData, error: profilesError } = await query.limit(50);
 
+      console.log('[useMatches] Raw query result:', { 
+        count: profilesData?.length || 0, 
+        error: profilesError,
+        profiles: profilesData?.map(p => ({ user_id: p.user_id, name: p.first_name, gender: p.gender, age: p.age }))
+      });
+      
+      // DEBUG: Log all profiles found before any filtering
+      console.log('[useMatches] ===== ALL PROFILES FROM DB =====');
+      profilesData?.forEach(p => {
+        console.log(`[useMatches] - ${p.first_name}: gender=${p.gender}, age=${p.age}, user_id=${p.user_id}`);
+      });
+      console.log('[useMatches] ================================');
+
       if (profilesError) {
         console.error('[useMatches] Profiles query error:', profilesError);
         throw profilesError;
       }
 
       if (!profilesData || profilesData.length === 0) {
-        console.log('[useMatches] No profiles found');
+        console.log('[useMatches] No profiles found after base query');
+        console.log('[useMatches] Excluded swiped IDs:', swipedIds);
+        console.log('[useMatches] Excluded blocked IDs:', blockedIds);
         setProfiles([]);
+        setLoading(false);
         return;
       }
 
@@ -191,6 +258,12 @@ export function useMatches() {
       // Apply filters manually and ensure blocks are enforced
       let filteredProfiles = profilesWithPrefs;
 
+      console.log('[useMatches] Raw profiles before filtering:', profilesWithPrefs.length);
+      console.log('[useMatches] Current user profile:', { 
+        gender: profile.gender, 
+        seeking_genders: profile.preferences?.seeking_genders 
+      });
+
       // Apply gender filters
       const currentSeeking = Array.isArray(profile.preferences?.seeking_genders)
         ? (profile.preferences?.seeking_genders as string[])
@@ -198,29 +271,84 @@ export function useMatches() {
           ? [profile.preferences?.seeking_genders as unknown as string]
           : [];
 
+      console.log('[useMatches] Current user gender:', profile.gender);
+      console.log('[useMatches] Current user seeking genders:', currentSeeking);
+
       // Show only profiles whose gender matches what current user is seeking
+      // If no preferences set, show all genders
       if (currentSeeking.length > 0) {
-        filteredProfiles = filteredProfiles.filter(p => currentSeeking.includes(p.gender));
+        const beforeGenderFilter = filteredProfiles.length;
+        filteredProfiles = filteredProfiles.filter(p => {
+          // Direct match
+          let matches = currentSeeking.includes(p.gender);
+          
+          // If user is seeking both man and woman, also include 'prefer_not_to_say' and 'non_binary'
+          // This is more inclusive - people who don't specify gender can still be shown
+          if (!matches && currentSeeking.includes('man') && currentSeeking.includes('woman')) {
+            if (p.gender === 'prefer_not_to_say' || p.gender === 'non_binary' || p.gender === 'other') {
+              matches = true;
+              console.log(`[useMatches] ${p.first_name}: gender=${p.gender} included (user seeks all)`);
+            }
+          }
+          
+          if (!matches) {
+            console.log(`[useMatches] ❌ Filtering out ${p.first_name} - gender ${p.gender} not in seeking ${currentSeeking}`);
+          }
+          return matches;
+        });
+        console.log(`[useMatches] Gender filter (seeking): ${beforeGenderFilter} -> ${filteredProfiles.length}`);
+      } else {
+        console.log('[useMatches] ⚠️ No seeking_genders set, showing all genders');
       }
 
       // Optional mutual filter: include only users who are also seeking our gender (if they set it)
+      // Be lenient - only filter if target has explicitly set preferences AND they don't match
+      const beforeMutualFilter = filteredProfiles.length;
       filteredProfiles = filteredProfiles.filter(p => {
-        if (!p.preferences?.seeking_genders) return true; // if target hasn't set preferences, include
+        // If target hasn't set preferences, include them
+        if (!p.preferences?.seeking_genders) {
+          console.log(`[useMatches] ${p.first_name} has no seeking_genders, including`);
+          return true;
+        }
+        
         const targetSeeking = Array.isArray(p.preferences.seeking_genders)
           ? p.preferences.seeking_genders as string[]
           : [p.preferences.seeking_genders as unknown as string];
-        return targetSeeking.includes(profile.gender);
+        
+        // If target's seeking_genders is empty, include them (they haven't set preferences)
+        if (targetSeeking.length === 0) {
+          console.log(`[useMatches] ${p.first_name} has empty seeking_genders, including`);
+          return true;
+        }
+        
+        const matches = targetSeeking.includes(profile.gender);
+        if (!matches) {
+          console.log(`[useMatches] Filtering out ${p.first_name} - they seek ${targetSeeking}, current user is ${profile.gender}`);
+        }
+        return matches;
       });
+      console.log(`[useMatches] Mutual gender filter: ${beforeMutualFilter} -> ${filteredProfiles.length}`);
 
-      // Apply age filter
+      // Apply age filter - but be lenient if age is not set (0 or null)
+      // Use wider defaults if preferences not set
       const ageMin = profile.preferences?.age_min ?? 18;
-      const ageMax = profile.preferences?.age_max ?? 100;
+      const ageMax = profile.preferences?.age_max ?? 99;
+      
+      console.log('[useMatches] Current user preferences:', JSON.stringify(profile.preferences, null, 2));
       
       console.log('[useMatches] Age preferences:', { ageMin, ageMax });
       
       const beforeAgeFilter = filteredProfiles.length;
       filteredProfiles = filteredProfiles.filter(p => {
         const profileAge = p.age || 0;
+        
+        // If profile has no age set (0 or null), include them anyway
+        // This prevents new profiles from being filtered out
+        if (!profileAge || profileAge === 0) {
+          console.log(`[useMatches] ${p.first_name} has no age set, including anyway`);
+          return true;
+        }
+        
         const withinRange = profileAge >= ageMin && profileAge <= ageMax;
         if (!withinRange) {
           console.log(`[useMatches] Filtering out ${p.first_name} (age: ${profileAge}) - outside range ${ageMin}-${ageMax}`);
@@ -238,20 +366,34 @@ export function useMatches() {
         );
       }
 
-      // Apply distance filter
+      // Apply distance filter - but be lenient if location data is missing or invalid
       if (profile.preferences?.max_distance_km && profile.location) {
         const maxDistance = profile.preferences.max_distance_km;
         const currentLocation = profile.location;
+        const beforeDistanceFilter = filteredProfiles.length;
+        
         filteredProfiles = filteredProfiles.filter(p => {
-          if (!p.location) return true; // Include if no location data
+          // Include if target has no location data
+          if (!p.location) {
+            console.log(`[useMatches] ${p.first_name} has no location, including`);
+            return true;
+          }
           
           const distance = calculateDistance(currentLocation, p.location);
+          
+          // If distance calculation failed (NaN), include the profile anyway
+          if (isNaN(distance)) {
+            console.log(`[useMatches] ${p.first_name} distance is NaN (invalid location data), including anyway`);
+            return true;
+          }
+          
           const withinDistance = distance <= maxDistance;
           
           console.log(`[useMatches] Distance to ${p.first_name}: ${distance}km (max: ${maxDistance}km, within: ${withinDistance})`);
           
           return withinDistance;
         });
+        console.log(`[useMatches] Distance filter: ${beforeDistanceFilter} -> ${filteredProfiles.length}`);
       }
 
       // PRIORITY BOOST: Sort profiles so boosted ones appear first
@@ -266,8 +408,14 @@ export function useMatches() {
         return 0; // Keep original order
       });
       
+      console.log('[useMatches] ========== FINAL RESULT ==========');
       console.log('[useMatches] Found profiles:', filteredProfiles.length);
-      console.log('[useMatches] Profile data:', filteredProfiles);
+      if (filteredProfiles.length === 0) {
+        console.log('[useMatches] NO PROFILES TO SHOW - Check filters above');
+      } else {
+        console.log('[useMatches] Profiles to show:', filteredProfiles.map(p => `${p.first_name} (${p.user_id})`));
+      }
+      console.log('[useMatches] ================================');
       setProfiles(filteredProfiles);
     } catch (error) {
       console.error('Error fetching potential matches:', error);
@@ -355,7 +503,7 @@ export function useMatches() {
     return new Date(swipeCounter.next_refill_at);
   };
 
-  const undoLastSwipe = async () => {
+  const undoLastSwipe = async (): Promise<{ data?: { success: boolean; action?: string; profile?: Profile }; error?: Error | unknown }> => {
     if (!user) return { error: new Error('No user logged in') };
     
     if (!user.is_premium) {
@@ -377,6 +525,9 @@ export function useMatches() {
         return { error: new Error('No swipe to undo') };
       }
 
+      const swipeAction = lastSwipe.action;
+      const targetUserId = lastSwipe.target_user_id;
+
       // Delete the last swipe
       const { error: deleteError } = await supabase
         .from('swipes')
@@ -388,14 +539,25 @@ export function useMatches() {
         throw deleteError;
       }
 
-      // If it was a match, we should also handle that (optional: delete match)
-      // For now, just remove the swipe
+      // Fetch the profile that was undone
+      const { data: undoneProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', targetUserId)
+        .single();
 
-      // Refresh potential matches to see that user again
-      await fetchPotentialMatches();
+      if (profileError || !undoneProfile) {
+        console.error('[useMatches] Error fetching undone profile:', profileError);
+        // Still return success, just refetch all
+        await fetchPotentialMatches();
+        return { data: { success: true, action: swipeAction }, error: null };
+      }
 
-      console.log('[useMatches] Swipe undone successfully');
-      return { data: { success: true }, error: null };
+      // Add the undone profile back to the front of the list (no loading state!)
+      setProfiles(prev => [undoneProfile as Profile, ...prev]);
+
+      console.log('[useMatches] Swipe undone successfully, action was:', swipeAction);
+      return { data: { success: true, action: swipeAction, profile: undoneProfile as Profile }, error: null };
     } catch (error) {
       console.error('[useMatches] Error undoing swipe:', error);
       return { error };

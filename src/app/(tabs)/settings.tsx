@@ -127,16 +127,25 @@ function SettingsScreen() {
   const confirmSignOut = async () => {
     setSignOutLoading(true);
     try {
-        await signOut();
+      // Close modal first
       setShowSignOutModal(false);
-        router.replace('/(auth)/login');
+      
+      // Sign out
+      const { error } = await signOut();
+      
+      if (error) {
+        console.warn('[Settings] Sign out had error but continuing:', error);
+      }
+      
+      // Small delay to ensure state is cleared before navigation
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Navigate to login
+      router.replace('/(auth)/login');
     } catch (error) {
       console.error('[Settings] Sign out error:', error);
-      if (Platform.OS === 'web') {
-        window.alert('Failed to sign out. Please try again.');
-      } else {
-        Alert.alert('Error', 'Failed to sign out. Please try again.');
-            }
+      // Even on error, try to navigate to login since local state is cleared
+      router.replace('/(auth)/login');
     } finally {
       setSignOutLoading(false);
     }
@@ -264,7 +273,7 @@ function SettingsScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never">
         {/* Account Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>

@@ -87,7 +87,7 @@ function HeaderTitle() {
   const { colors } = useTheme();
   
   return (
-    <View style={{ flexDirection: 'column' }}>
+    <View style={{ flexDirection: 'column', paddingTop: 6, paddingBottom: 20 }}>
       <Text style={{ 
         fontSize: 22, 
         fontWeight: '800', 
@@ -96,10 +96,10 @@ function HeaderTitle() {
       }}>
         Mali Match
       </Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-        <Ionicons name="location" size={12} color={colors.textSecondary} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
+        <Ionicons name="location" size={11} color={colors.textSecondary} />
         <Text style={{ 
-          fontSize: 12, 
+          fontSize: 11, 
           color: colors.textSecondary,
           fontWeight: '500',
         }}>
@@ -128,9 +128,10 @@ export default function TabLayout() {
         headerStyle: {
           backgroundColor: colors.surface,
           elevation: 0,
-          shadowOpacity: 0,
-          borderBottomWidth: 0.5,
-          borderBottomColor: colors.border,
+          shadowOpacity: 0.08,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowRadius: 4,
         },
         headerTitle: () => <HeaderTitle />,
         headerRight: () => <HeaderRightButtons />,
@@ -138,6 +139,7 @@ export default function TabLayout() {
         headerLeftContainerStyle: {
           paddingLeft: 16,
         },
+        headerShadowVisible: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarShowLabel: false, // No labels - icons only
@@ -160,6 +162,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Discover',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "heart" : "heart-outline"} size={26} color={color} />
           ),
@@ -169,6 +172,7 @@ export default function TabLayout() {
         name="matches"
         options={{
           title: 'Matches',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "chatbubbles" : "chatbubbles-outline"} size={26} color={color} />
           ),
@@ -178,6 +182,7 @@ export default function TabLayout() {
         name="premium"
         options={{
           title: 'Likes',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "people" : "people-outline"} size={26} color={color} />
           ),
@@ -187,6 +192,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: 'Settings',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "settings" : "settings-outline"} size={26} color={color} />
           ),
@@ -204,6 +210,7 @@ export default function TabLayout() {
         options={{
           href: null, // Hidden - chat is accessed from matches
           headerShown: false,
+          tabBarStyle: { display: 'none' }, // Hide tab bar in chat
         }}
       />
     </Tabs>

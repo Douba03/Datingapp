@@ -11,11 +11,11 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../services/supabase/client';
-import { colors } from '../components/theme/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface BlockedUser {
   id: string;
@@ -33,6 +33,8 @@ interface BlockedUser {
 export default function BlockedUsersScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [unblocking, setUnblocking] = useState<string | null>(null);
@@ -229,9 +231,20 @@ export default function BlockedUsersScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Content */}
-      {loading ? (
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Blocked Users</Text>
+          <View style={styles.headerRight} />
+        </View>
+
+        {/* Content */}
+        {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading blocked users...</Text>
@@ -253,14 +266,35 @@ export default function BlockedUsersScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  headerRight: {
+    width: 40,
   },
   loadingContainer: {
     flex: 1,

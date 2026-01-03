@@ -1,6 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase/client';
 import { useAuth } from './useAuth';
+import { withTimeout } from '../utils/supabaseHelpers';
+
+const QUERY_TIMEOUT = 8000; // 8 seconds
 
 export interface NotificationPreferences {
   push_enabled: boolean;
@@ -30,11 +33,20 @@ export function useNotificationPreferences() {
     try {
       console.log('[NotificationPrefs] Fetching preferences for user:', user.id);
       
-      const { data, error: fetchError } = await supabase
-        .from('notification_preferences')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      const queryPromise = new Promise<{ data: any; error: any }>((resolve) => {
+        supabase
+          .from('notification_preferences')
+          .select('*')
+          .eq('user_id', user.id)
+          .single()
+          .then(r => resolve(r));
+      });
+      
+      const { data, error: fetchError } = await withTimeout(
+        queryPromise,
+        QUERY_TIMEOUT,
+        'Loading notification preferences timed out'
+      );
 
       if (fetchError) {
         // If no preferences exist, create default ones

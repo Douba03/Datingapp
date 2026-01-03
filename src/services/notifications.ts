@@ -3,16 +3,21 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Check if running in Expo Go (push notifications not available)
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Configure notification behavior (only if not in Expo Go on Android)
+if (!isExpoGo || Platform.OS === 'ios') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export interface NotificationData {
   type: 'match' | 'message' | 'like' | 'system';
@@ -31,45 +36,56 @@ class NotificationService {
    * Register for push notifications and get the push token
    */
   async registerForPushNotifications(): Promise<string | null> {
+    // Skip push notification registration in Expo Go on Android
+    if (isExpoGo && Platform.OS === 'android') {
+      console.log('[Notifications] Expo Go detected on Android - push notifications not available');
+      return null;
+    }
+
     let token = null;
 
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
+      try {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      } catch (error) {
+        console.log('[Notifications] Could not set notification channel:', error);
+      }
     }
 
     if (Device.isDevice) {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
-        return null;
-      }
-      
       try {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        
+        if (finalStatus !== 'granted') {
+          console.log('[Notifications] Permission not granted');
+          return null;
+        }
+        
         const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
         if (!projectId) {
-          throw new Error('Project ID not found');
+          console.log('[Notifications] Project ID not found');
+          return null;
         }
         
         token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-        console.log('Push token:', token);
+        console.log('[Notifications] Push token:', token);
       } catch (error) {
-        console.error('Error getting push token:', error);
+        console.log('[Notifications] Error getting push token:', error);
         return null;
       }
     } else {
-      console.log('Must use physical device for Push Notifications');
+      console.log('[Notifications] Must use physical device for Push Notifications');
     }
 
     this.expoPushToken = token;

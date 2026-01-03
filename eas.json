@@ -28,6 +28,19 @@
         "npm_config_legacy_peer_deps": "true"
       }
     },
+    "development:device": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "npm_config_legacy_peer_deps": "true"
+      }
+    },
     "production": {
       "android": {
         "buildType": "app-bundle"

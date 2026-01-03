@@ -76,23 +76,32 @@ export default function LoginScreen() {
         : await signIn(emailNormalized, password);
 
       if (error) {
-        console.error('Auth error:', error);
+        // Use warn instead of error to avoid red error overlay in dev
+        console.warn('[Login] Auth error:', error);
         
         // Handle specific error cases
-        let errorMessage = (error instanceof Error ? error.message : (error as any)?.message) || 'An unknown error occurred';
+        let errorMsg = (error instanceof Error ? error.message : (error as any)?.message) || 'An unknown error occurred';
         
-        if (errorMessage.includes('Invalid login credentials')) {
+        if (errorMsg.includes('Invalid login credentials')) {
           // For invalid credentials, we can't distinguish between wrong email and wrong password
           // due to security reasons. Show a generic message.
-          console.log('Setting error message for invalid credentials');
-          setErrorMessage('Invalid email or password. Please try again.');
+          setErrorMessage('Invalid email or password. Please check your credentials and try again.');
           setErrorType('general');
-          console.log('Error message and type set');
-        } else if (errorMessage.includes('already registered')) {
+        } else if (errorMsg.includes('already registered')) {
           setErrorMessage('This email is already registered. Please sign in instead.');
           setErrorType('email');
+        } else if (errorMsg.includes('Email not confirmed')) {
+          setErrorMessage('Please check your email and confirm your account before signing in.');
+          setErrorType('email');
+        } else if (errorMsg.includes('Too many requests')) {
+          setErrorMessage('Too many login attempts. Please wait a moment and try again.');
+          setErrorType('general');
+        } else if (errorMsg.includes('network') || errorMsg.includes('Network')) {
+          setErrorMessage('Network error. Please check your connection and try again.');
+          setErrorType('general');
         } else {
-          setErrorMessage(errorMessage);
+          // Make error message more user-friendly
+          setErrorMessage('Unable to sign in. Please check your credentials and try again.');
           setErrorType('general');
         }
       } else if (isSignUp && data?.user?.identities?.length === 0) {

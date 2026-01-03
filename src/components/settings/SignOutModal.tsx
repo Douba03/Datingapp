@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -22,6 +22,9 @@ interface SignOutModalProps {
 }
 
 export function SignOutModal({ visible, loading, onClose, onConfirm }: SignOutModalProps) {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
+  
   return (
     <Modal
       visible={visible}
@@ -34,7 +37,7 @@ export function SignOutModal({ visible, loading, onClose, onConfirm }: SignOutMo
           {/* Header with Icon */}
           <View style={styles.iconContainer}>
             <LinearGradient
-              colors={['#6366F1', '#8B5CF6']}
+              colors={[colors.primary, colors.primaryDark || '#C41E56']}
               style={styles.iconGradient}
             >
               <Ionicons name="log-out-outline" size={36} color="#fff" />
@@ -50,9 +53,9 @@ export function SignOutModal({ visible, loading, onClose, onConfirm }: SignOutMo
           </Text>
 
           {/* Info Box */}
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={20} color="#6366F1" />
-            <Text style={styles.infoText}>
+          <View style={[styles.infoBox, { backgroundColor: `${colors.primary}15` }]}>
+            <Ionicons name="information-circle" size={20} color={colors.primary} />
+            <Text style={[styles.infoText, { color: colors.primary }]}>
               Your matches and messages will be waiting for you when you return!
             </Text>
           </View>
@@ -75,7 +78,7 @@ export function SignOutModal({ visible, loading, onClose, onConfirm }: SignOutMo
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={['#6366F1', '#8B5CF6']}
+                colors={[colors.primary, colors.primaryDark || '#C41E56']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.signOutGradient}
@@ -97,7 +100,7 @@ export function SignOutModal({ visible, loading, onClose, onConfirm }: SignOutMo
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Mali Match",
-    "slug": "mali-match",
+    "slug": "partner-productivity-app",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,7 +11,7 @@
       "tsconfigPaths": true
     },
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -19,9 +19,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.partnerproductivityapp",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
+        "SKAdNetworkItems": [],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -64,7 +63,10 @@
             "targetSdkVersion": 35
           }
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-asset",
+      "expo-iap"
     ],
     "scheme": "mali-match",
     "notification": {

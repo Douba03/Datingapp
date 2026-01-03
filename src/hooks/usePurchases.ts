@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform, Alert } from 'react-native';
 import { PurchaseService, PurchaseEvent } from '../services/iap/purchaseService';
 import { useAuth } from './useAuth';
@@ -9,19 +9,7 @@ export function usePurchases() {
   const [restoring, setRestoring] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [price, setPrice] = useState('$1.99');
-
-  // Initialize IAP on mount (only on iOS/Android)
-  useEffect(() => {
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      initializeIAP();
-    }
-  }, []);
-
-  // Subscribe to purchase events
-  useEffect(() => {
-    const unsubscribe = PurchaseService.subscribe(handlePurchaseEvent);
-    return () => unsubscribe();
-  }, []);
+  const purchaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const initializeIAP = async () => {
     const success = await PurchaseService.initialize();
@@ -31,16 +19,29 @@ export function usePurchases() {
       // Get the actual price from the store
       const storePrice = PurchaseService.getPremiumPrice();
       setPrice(storePrice);
+      
+      // Verify and sync subscription with store (handles auto-renewals)
+      if (user) {
+        await PurchaseService.verifyAndSyncSubscription(user.id);
+      }
     }
   };
 
   const handlePurchaseEvent = useCallback(async (event: PurchaseEvent) => {
     console.log('[usePurchases] Event:', event.type);
     
+    // Clear any pending timeout
+    if (purchaseTimeoutRef.current) {
+      clearTimeout(purchaseTimeoutRef.current);
+      purchaseTimeoutRef.current = null;
+    }
+    
     switch (event.type) {
       case 'PURCHASE_SUCCESS':
         setLoading(false);
         // Refresh user profile to get updated premium status
+        // The payment screen will show the celebration modal
+        console.log('[usePurchases] Purchase success - refreshing profile...');
         await refreshProfile();
         break;
         
@@ -76,6 +77,19 @@ export function usePurchases() {
     }
   }, [refreshProfile]);
 
+  // Initialize IAP on mount (only on iOS/Android)
+  useEffect(() => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      initializeIAP();
+    }
+  }, []);
+
+  // Subscribe to purchase events
+  useEffect(() => {
+    const unsubscribe = PurchaseService.subscribe(handlePurchaseEvent);
+    return () => unsubscribe();
+  }, [handlePurchaseEvent]);
+
   /**
    * Purchase premium subscription
    */
@@ -96,9 +110,21 @@ export function usePurchases() {
 
     setLoading(true);
     
+    // Set a timeout to prevent infinite spinner
+    const timeout = setTimeout(() => {
+      console.log('[usePurchases] Purchase timeout - resetting loading state');
+      setLoading(false);
+      purchaseTimeoutRef.current = null;
+      // Check if user became premium anyway
+      refreshProfile();
+    }, 60000); // 60 second timeout
+    purchaseTimeoutRef.current = timeout;
+    
     const result = await PurchaseService.purchasePremium(user.id);
     
     if (!result.success) {
+      clearTimeout(timeout);
+      purchaseTimeoutRef.current = null;
       setLoading(false);
       if (result.error) {
         Alert.alert('Purchase Error', result.error);
@@ -106,9 +132,9 @@ export function usePurchases() {
       return false;
     }
 
-    // Purchase initiated - wait for event
+    // Purchase initiated - wait for event (timeout will clear loading if needed)
     return true;
-  }, [user]);
+  }, [user, refreshProfile]);
 
   /**
    * Restore previous purchases

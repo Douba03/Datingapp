@@ -22,6 +22,9 @@ import { MessageInput } from '../../../components/chat/MessageInput';
 import { ProtectedRoute } from '../../../components/auth/ProtectedRoute';
 import { BlockUserModal } from '../../../components/chat/BlockUserModal';
 import { ReportUserModal } from '../../../components/chat/ReportUserModal';
+import { ImagePreviewModal } from '../../../components/chat/ImagePreviewModal';
+import { GifPicker, PICKER_HEIGHT } from '../../../components/chat/GifPicker';
+import { ChatMenuModal } from '../../../components/chat/ChatMenuModal';
 import { supabase } from '../../../services/supabase/client';
 import { usePhotoUpload } from '../../../hooks/usePhotoUpload';
 import { colors as staticColors } from '../../../components/theme/colors';
@@ -39,43 +42,110 @@ function ChatScreen() {
   const [attachLoading, setAttachLoading] = useState(false);
   const [blockModalVisible, setBlockModalVisible] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
+  const [sendingImage, setSendingImage] = useState(false);
+  const [gifPickerVisible, setGifPickerVisible] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  const { pickAndUploadPhoto } = usePhotoUpload();
+  const { uploadPhoto, pickPhoto, takePhoto } = usePhotoUpload();
 
   const match = matches.find(m => m.id === matchId);
+
+  // Track last message timestamp for smart polling
+  const lastMessageTimeRef = useRef<string | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load messages when matchId changes
   useEffect(() => {
     let subscription: any = null;
     
     if (matchId && user) {
-      console.log('[ChatScreen] MatchId changed:', matchId);
       loadMessages();
       subscription = setupRealtimeSubscription();
+      
+      // Smart polling fallback - check for new messages every 5 seconds
+      // This runs silently without any UI refresh
+      pollingIntervalRef.current = setInterval(() => {
+        pollForNewMessages();
+      }, 5000);
     }
 
     return () => {
-      // Cleanup subscription
-      console.log('[ChatScreen] Cleaning up subscriptions');
       if (subscription) {
         supabase.removeChannel(subscription);
+      }
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
       }
     };
   }, [matchId, user]);
 
+  // Silent polling for new messages - no UI flicker
+  const pollForNewMessages = async () => {
+    if (!matchId || !user) return;
+    
+    try {
+      // Only fetch messages newer than our last known message
+      let query = supabase
+        .from('messages')
+        .select('*')
+        .eq('match_id', matchId)
+        .neq('sender_id', user.id) // Only check for OTHER user's messages
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (lastMessageTimeRef.current) {
+        query = query.gt('created_at', lastMessageTimeRef.current);
+      }
+      
+      const { data: newMessages } = await query;
+      
+      if (newMessages && newMessages.length > 0) {
+        // Get sender info for new messages
+        const senderIds = [...new Set(newMessages.map(m => m.sender_id))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, photos')
+          .in('user_id', senderIds);
+        
+        // Add new messages to state without full reload
+        const messagesWithSenders = newMessages.map(msg => ({
+          ...msg,
+          sender: profiles?.find(p => p.user_id === msg.sender_id) || {
+            user_id: msg.sender_id,
+            first_name: 'Unknown',
+            photos: []
+          }
+        }));
+        
+        setMessages(prev => {
+          // Filter out duplicates
+          const existingIds = new Set(prev.map(m => m.id));
+          const uniqueNew = messagesWithSenders.filter(m => !existingIds.has(m.id));
+          
+          if (uniqueNew.length > 0) {
+            // Update last message time
+            lastMessageTimeRef.current = uniqueNew[0].created_at;
+            // Inverted FlatList auto-shows new messages at bottom
+            return [...prev, ...uniqueNew.reverse()];
+          }
+          return prev;
+        });
+      }
+    } catch (error) {
+      // Silent fail - don't show errors for background polling
+    }
+  };
+
   // Also load messages when match data is available
   useEffect(() => {
     if (match && matchId) {
-      console.log('[ChatScreen] Match data available');
-      // Don't load messages again - already loaded in the first useEffect
+      // Update last message time when messages change
+      if (messages.length > 0) {
+        lastMessageTimeRef.current = messages[messages.length - 1].created_at;
+      }
     }
-  }, [match]);
-
-  // Manual refresh function for debugging
-  const refreshMessages = async () => {
-    console.log('[ChatScreen] Manual refresh triggered');
-    await loadMessages();
-  };
+  }, [match, messages.length]);
 
   const loadMessages = async () => {
     if (!matchId) return;
@@ -124,6 +194,8 @@ function ChatScreen() {
 
       console.log('[ChatScreen] Messages loaded with senders:', messagesWithSenders.length);
       setMessages(messagesWithSenders);
+      setLoadingMessages(false);
+      // With inverted FlatList, newest messages are automatically at the bottom
       
     } catch (error) {
       console.error('[ChatScreen] Error in loadMessages:', error);
@@ -196,16 +268,10 @@ function ChatScreen() {
           }
         )
         .subscribe((status) => {
-          console.log('[ChatScreen] 📡 Subscription status:', status);
           if (status === 'SUBSCRIBED') {
-            console.log('[ChatScreen] ✅ Real-time subscription active');
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error('[ChatScreen] ❌ Real-time subscription error - real-time may not be enabled');
-          } else if (status === 'TIMED_OUT') {
-            console.error('[ChatScreen] ❌ Real-time subscription timed out');
-          } else if (status === 'CLOSED') {
-            console.log('[ChatScreen] ❌ Real-time subscription closed');
+            console.log('[ChatScreen] Real-time active');
           }
+          // Silently handle errors - polling will be used as fallback
         });
 
       return subscription;
@@ -222,14 +288,8 @@ function ChatScreen() {
     }
   }, [matchId, markAsRead, match]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-  }, [messages.length]);
+  // With inverted FlatList, new messages automatically appear at bottom
+  // No manual scroll needed
 
   const handleSendMessage = async (message: string) => {
     if (!match || sendingMessage || !user) return;
@@ -282,69 +342,217 @@ function ChatScreen() {
     }
   };
 
-  const handleAttach = async () => {
+  const sendMediaMessage = async (url: string) => {
+    if (!match || !user) return;
+    
+    const { data, error: sendErr } = await supabase
+      .from('messages')
+      .insert({
+        match_id: matchId,
+        sender_id: user.id,
+        body: '',
+        media: [url],
+        message_type: 'image',
+      })
+      .select()
+      .single();
+      
+    if (sendErr) {
+      console.error('[ChatScreen] Media send error:', sendErr);
+      Alert.alert('Error', 'Failed to send attachment');
+      return;
+    }
+    
+    console.log('[ChatScreen] Media message sent');
+    await loadMessages();
+  };
+
+  const handleCamera = async () => {
     if (!match || !user) return;
     try {
       setAttachLoading(true);
-      const { url, error } = await pickAndUploadPhoto();
-      if (error || !url) {
-        Alert.alert('Upload Error', error?.message || 'Failed to upload');
+      const { uri, error } = await takePhoto();
+      
+      // User cancelled - no error, just return silently
+      if (!uri && !error) {
         return;
       }
-      // Send media message with empty body + media array
+      
+      if (error) {
+        Alert.alert('Camera Error', error?.message || 'Failed to capture photo');
+        return;
+      }
+      
+      // Show preview instead of sending immediately
+      setImagePreviewUri(uri);
+    } catch (e: any) {
+      console.error('[ChatScreen] handleCamera error:', e);
+      Alert.alert('Error', e?.message || 'Camera failed');
+    } finally {
+      setAttachLoading(false);
+    }
+  };
+
+  const handleImage = async () => {
+    if (!match || !user) return;
+    try {
+      setAttachLoading(true);
+      const { uri, error } = await pickPhoto();
+      
+      // User cancelled - no error, just return silently
+      if (!uri && !error) {
+        return;
+      }
+      
+      if (error) {
+        Alert.alert('Upload Error', error?.message || 'Failed to select image');
+        return;
+      }
+      
+      // Show preview instead of sending immediately
+      setImagePreviewUri(uri);
+    } catch (e: any) {
+      console.error('[ChatScreen] handleImage error:', e);
+      Alert.alert('Error', e?.message || 'Image selection failed');
+    } finally {
+      setAttachLoading(false);
+    }
+  };
+
+  const handleSendImage = async () => {
+    if (!imagePreviewUri || !match || !user) return;
+    
+    try {
+      setSendingImage(true);
+      const { url, error } = await uploadPhoto(imagePreviewUri);
+      
+      if (error || !url) {
+        Alert.alert('Upload Error', error?.message || 'Failed to upload image');
+        return;
+      }
+      
+      await sendMediaMessage(url);
+      setImagePreviewUri(null);
+    } catch (e: any) {
+      console.error('[ChatScreen] handleSendImage error:', e);
+      Alert.alert('Error', e?.message || 'Failed to send image');
+    } finally {
+      setSendingImage(false);
+    }
+  };
+
+  const handleCancelImagePreview = () => {
+    setImagePreviewUri(null);
+  };
+
+  const handleSendVoice = async (voiceUrl: string, duration: number) => {
+    if (!match || !user) return;
+    
+    // Optimistic update
+    const tempId = `temp-voice-${Date.now()}`;
+    const tempMessage = {
+      id: tempId,
+      match_id: matchId,
+      sender_id: user.id,
+      body: `🎤 Voice message (${duration}s)`,
+      media: [voiceUrl],
+      message_type: 'voice',
+      created_at: new Date().toISOString(),
+      sender: {
+        id: user.id,
+        first_name: 'You',
+      },
+    };
+    
+    setMessages(prev => [...prev, tempMessage]);
+    // Inverted FlatList auto-shows new messages
+    
+    try {
+      const { data, error: sendErr } = await supabase
+        .from('messages')
+        .insert({
+          match_id: matchId,
+          sender_id: user.id,
+          body: `🎤 Voice message (${duration}s)`,
+          media: [voiceUrl],
+          message_type: 'voice',
+        })
+        .select()
+        .single();
+        
+      if (sendErr) {
+        console.error('[ChatScreen] Voice send error:', sendErr);
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        Alert.alert('Error', 'Failed to send voice message');
+        return;
+      }
+      
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...data, sender: tempMessage.sender } : m));
+      console.log('[ChatScreen] Voice message sent');
+    } catch (e: any) {
+      console.error('[ChatScreen] handleSendVoice error:', e);
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      Alert.alert('Error', e?.message || 'Failed to send voice message');
+    }
+  };
+
+  const handleGif = () => {
+    setGifPickerVisible(true);
+  };
+
+  const handleSelectGif = async (gifUrl: string) => {
+    if (!match || !user) return;
+    
+    setGifPickerVisible(false);
+    
+    // Optimistic update - add GIF immediately to UI
+    const tempId = `temp-gif-${Date.now()}`;
+    const tempMessage = {
+      id: tempId,
+      match_id: matchId,
+      sender_id: user.id,
+      body: '',
+      media: [gifUrl],
+      message_type: 'gif',
+      created_at: new Date().toISOString(),
+      sender: {
+        id: user.id,
+        first_name: 'You',
+      },
+    };
+    
+    setMessages(prev => [...prev, tempMessage]);
+    // Inverted FlatList auto-shows new messages
+    
+    try {
+      // Send GIF to database
       const { data, error: sendErr } = await supabase
         .from('messages')
         .insert({
           match_id: matchId,
           sender_id: user.id,
           body: '',
-          media: [url],
-          message_type: 'image',
+          media: [gifUrl],
+          message_type: 'gif',
         })
         .select()
         .single();
+        
       if (sendErr) {
-        console.error('[ChatScreen] Media send error:', sendErr);
-        Alert.alert('Error', 'Failed to send attachment');
+        console.error('[ChatScreen] GIF send error:', sendErr);
+        // Remove temp message on error
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        Alert.alert('Error', 'Failed to send GIF');
         return;
       }
-
-      // Send push notification for media message
-      // Temporarily disabled until Edge Functions are deployed
-      /*
-      try {
-        const { data: matchData } = await supabase
-          .from('matches')
-          .select('user_a_id, user_b_id')
-          .eq('id', matchId)
-          .single();
-
-        if (matchData) {
-          const recipientId = matchData.user_a_id === user.id ? matchData.user_b_id : matchData.user_a_id;
-          
-          const { notificationService } = await import('../../../services/notifications');
-          await notificationService.sendMessageNotification(
-            recipientId,
-            user.id,
-            data.id,
-            matchId,
-            '📷 Photo'
-          );
-          console.log('[ChatScreen] Push notification sent for media');
-        }
-      } catch (notificationError) {
-        console.error('[ChatScreen] Failed to send push notification:', notificationError);
-      }
-      */
-      console.log('[ChatScreen] Push notifications disabled until Edge Functions are deployed');
-
-      // Refresh list; realtime will also catch it, but ensure immediate UX
-      await loadMessages();
+      
+      // Replace temp message with real one
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...data, sender: tempMessage.sender } : m));
+      console.log('[ChatScreen] GIF message sent');
     } catch (e: any) {
-      console.error('[ChatScreen] handleAttach error:', e);
-      Alert.alert('Error', e?.message || 'Attachment failed');
-    } finally {
-      setAttachLoading(false);
+      console.error('[ChatScreen] handleSelectGif error:', e);
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      Alert.alert('Error', e?.message || 'Failed to send GIF');
     }
   };
 
@@ -381,7 +589,8 @@ function ChatScreen() {
         Alert.alert('Blocked', 'You will no longer see or match with this user.');
       }
       
-      router.back();
+      // Navigate to matches page after blocking
+      router.replace('/(tabs)/matches');
     } catch (e: any) {
       console.error('[ChatScreen] Block error:', e);
       Alert.alert('Error', e?.message || 'Failed to block user');
@@ -389,13 +598,23 @@ function ChatScreen() {
   };
 
   const handleBackPress = () => {
-    router.back();
+    // Navigate explicitly to matches page instead of using back()
+    // This prevents navigation issues with nested routes
+    router.replace('/(tabs)/matches');
   };
 
   const handleProfilePress = () => {
     if (!match) return;
     // Open the other user's profile directly in read-only mode
-    router.push({ pathname: '/(tabs)/profile', params: { viewUserId: (match.other_user as any).user_id, readonly: '1' } as any });
+    // Pass returnTo so profile knows where to go back
+    router.push({ 
+      pathname: '/(tabs)/profile', 
+      params: { 
+        viewUserId: (match.other_user as any).user_id, 
+        readonly: '1',
+        returnTo: `/(tabs)/chat/${matchId}`
+      } as any 
+    });
   };
 
   const handleReportUser = async (reason: string, details: string) => {
@@ -484,50 +703,65 @@ function ChatScreen() {
         onCancel={() => setReportModalVisible(false)}
       />
 
-      {/* Enhanced Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.profileSection} onPress={handleProfilePress}>
-          <Image
-            source={{ 
-              uri: match.other_user.photos?.[0] || 'https://via.placeholder.com/40' 
-            }}
-            style={[styles.profileImage, { borderColor: colors.primary }]}
-          />
-          <View style={styles.profileInfo}>
-            <Text style={[styles.matchName, { color: colors.text }]}>
-              {match.other_user.first_name}, {match.other_user.age}
-            </Text>
-            <Text style={[styles.onlineStatus, { color: colors.success }]}>
-              {isTyping ? 'Typing...' : 'Online'}
-            </Text>
-          </View>
-        </TouchableOpacity>
+      {/* Image Preview Modal */}
+      <ImagePreviewModal
+        visible={!!imagePreviewUri}
+        imageUri={imagePreviewUri}
+        onSend={handleSendImage}
+        onCancel={handleCancelImagePreview}
+        sending={sendingImage}
+      />
 
-        <TouchableOpacity
-          style={styles.moreButton}
-          onPress={() => setReportModalVisible(true)}
-          accessibilityLabel="Report user"
-        >
-          <Ionicons name="flag-outline" size={22} color={colors.error} />
-        </TouchableOpacity>
 
+      {/* Chat Menu Modal */}
+      <ChatMenuModal
+        visible={menuVisible}
+        userName={match.other_user.first_name}
+        onReport={() => {
+          setMenuVisible(false);
+          setTimeout(() => setReportModalVisible(true), 300);
+        }}
+        onBlock={() => {
+          setMenuVisible(false);
+          setTimeout(() => setBlockModalVisible(true), 300);
+        }}
+        onCancel={() => setMenuVisible(false)}
+      />
+
+      {/* Header - Matching app default style */}
+      <View style={[styles.header, { backgroundColor: colors.surface }]}>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.headerContent} onPress={handleProfilePress}>
+            <View style={[styles.avatarContainer, { backgroundColor: colors.primary }]}>
+              <Image
+                source={{ 
+                  uri: match.other_user.photos?.[0] || 'https://via.placeholder.com/40' 
+                }}
+                style={styles.headerAvatar}
+              />
+            </View>
+            <View style={styles.headerTitleContainer}>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>
+                {match.other_user.first_name}, {match.other_user.age}
+              </Text>
+              <Text style={[styles.headerSubtitle, { color: colors.success }]}>
+                {isTyping ? 'Typing...' : 'Online'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Menu Button */}
         <TouchableOpacity
-          style={styles.refreshButton}
-          onPress={refreshMessages}
-          accessibilityLabel="Refresh messages"
+          style={styles.menuButton}
+          onPress={() => setMenuVisible(true)}
+          accessibilityLabel="More options"
         >
-          <Ionicons name="refresh" size={20} color={colors.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.moreButton}
-          onPress={() => setBlockModalVisible(true)}
-          accessibilityLabel="Block user"
-        >
-          <Ionicons name="ban-outline" size={22} color={colors.text} />
+          <Ionicons name="ellipsis-vertical" size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -539,15 +773,15 @@ function ChatScreen() {
       >
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={[...messages].reverse()}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <MessageBubble message={item} onImagePress={handleImageOpen} />}
           contentContainerStyle={styles.messagesContainer}
-          inverted={false}
+          inverted={true}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="always"
           ListEmptyComponent={() => (
-            <View style={styles.emptyMessages}>
+            <View style={[styles.emptyMessages, { transform: [{ scaleY: -1 }] }]}>
               <Ionicons name="chatbubbles-outline" size={48} color={colors.textSecondary} />
               <Text style={[styles.emptyText, { color: colors.text }]}>Start the conversation!</Text>
               <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Say hi to {match.other_user.first_name}!</Text>
@@ -555,14 +789,26 @@ function ChatScreen() {
           )}
         />
 
-        {/* Message Input */}
+        {/* Message Input - Always visible */}
         <MessageInput
           onSend={handleSendMessage}
-          onAttach={handleAttach}
+          onSendVoice={handleSendVoice}
+          onCamera={handleCamera}
+          onImage={handleImage}
+          onGif={handleGif}
+          onInputFocus={() => setGifPickerVisible(false)}
           attachLoading={attachLoading}
           placeholder={`Message ${match.other_user.first_name}...`}
           disabled={sendingMessage}
         />
+
+        {/* GIF Picker (shows below input, same space as keyboard) */}
+        {gifPickerVisible && (
+          <GifPicker
+            onSelect={handleSelectGif}
+            onClose={() => setGifPickerVisible(false)}
+          />
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -587,19 +833,55 @@ const styles = StyleSheet.create({
     backgroundColor: staticColors.surface,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: staticColors.border,
-    elevation: 2,
-    height: 50,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    marginHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  headerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  headerTitleContainer: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
   },
   chatArea: {
     flex: 1,
   },
   backButton: {
     padding: 4,
-    marginRight: 4,
+    marginRight: 8,
   },
   profileSection: {
     flex: 1,
@@ -630,6 +912,9 @@ const styles = StyleSheet.create({
   moreButton: {
     padding: 6,
     marginLeft: 4,
+  },
+  menuButton: {
+    padding: 8,
   },
   refreshButton: {
     padding: 6,

@@ -90,11 +90,11 @@ const darkColors: ThemeColors = {
   secondary: '#FF8A65',
   accent: '#FFD700',
   
-  background: '#121212',
-  backgroundGradientStart: '#1A1A2E',
-  backgroundGradientEnd: '#16213E',
-  surface: '#1E1E1E',
-  surfaceElevated: '#2D2D2D',
+  background: '#000000',
+  backgroundGradientStart: '#000000',
+  backgroundGradientEnd: '#0A0A0A',
+  surface: '#1A1A1A',
+  surfaceElevated: '#252525',
   
   text: '#FFFFFF',
   textSecondary: '#A0A0A0',

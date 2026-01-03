@@ -8,6 +8,7 @@ import {
   Platform,
   Animated,
   Easing,
+  ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -120,6 +121,9 @@ export default function CompleteScreen() {
         relationship_intent: onboardingData.relationshipIntent || 'casual',
       };
 
+      console.log('[Complete] Saving profile data:', profileData);
+      console.log('[Complete] Saving preferences data:', preferencesData);
+
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert(profileData, { 
@@ -167,10 +171,14 @@ export default function CompleteScreen() {
       colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
       style={styles.container}
     >
-      <View style={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
-        
+      {/* Scrollable Content */}
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 40 }]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Success Icon */}
-              <Animated.View
+        <Animated.View
           style={[
             styles.iconContainer,
             {
@@ -198,7 +206,7 @@ export default function CompleteScreen() {
           <View style={[styles.decorCircle, styles.circle1]} />
           <View style={[styles.decorCircle, styles.circle2]} />
           <View style={[styles.decorCircle, styles.circle3]} />
-              </Animated.View>
+        </Animated.View>
 
         {/* Title */}
         <Animated.View style={[styles.titleSection, { opacity: fadeAnim }]}>
@@ -225,35 +233,35 @@ export default function CompleteScreen() {
             <StepItem number="3" text="Match and start chatting!" />
           </View>
         </Animated.View>
+      </ScrollView>
 
-        {/* CTA Button */}
-        <Animated.View style={[styles.ctaSection, { opacity: fadeAnim }]}>
-          <TouchableOpacity
-            style={styles.ctaButton}
+      {/* Fixed Footer Button */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+        <TouchableOpacity
+          style={styles.ctaButton}
           onPress={handleComplete}
           disabled={saving}
-            activeOpacity={0.9}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={[colors.primary, colors.primaryDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.buttonGradient}
           >
-            <LinearGradient
-              colors={[colors.primary, colors.primaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.buttonGradient}
-            >
-              {saving ? (
-                <>
-                  <ActivityIndicator size="small" color="#fff" />
-                  <Text style={styles.buttonText}>Setting up...</Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="rocket" size={22} color="#fff" />
-                  <Text style={styles.buttonText}>Let's Go!</Text>
-                </>
-        )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
+            {saving ? (
+              <>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={styles.buttonText}>Setting up...</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="rocket" size={22} color="#fff" />
+                <Text style={styles.buttonText}>Let's Go!</Text>
+              </>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
     </LinearGradient>
   );
@@ -286,15 +294,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 24,
-    justifyContent: 'center',
+    paddingBottom: 20,
+  },
+  footer: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 16,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   iconContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
     marginBottom: 28,
-    position: 'relative',
+    width: 150,
+    height: 150,
+    alignSelf: 'center',
   },
   iconGradient: {
     width: 110,
@@ -307,6 +329,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 12,
+    zIndex: 2,
   },
   ring: {
     position: 'absolute',
@@ -316,6 +339,9 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: `${colors.success}30`,
     borderStyle: 'dashed',
+    top: 5,
+    left: 5,
+    zIndex: 1,
   },
   decorCircle: {
     position: 'absolute',
@@ -428,9 +454,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
-  },
-  ctaSection: {
-    paddingTop: 8,
   },
   ctaButton: {
     borderRadius: 16,

@@ -33,13 +33,14 @@ export function MatchCard({ match, onPress }: MatchCardProps) {
 
   return (
     <TouchableOpacity 
-      style={[styles.container, { backgroundColor: colors.surface, borderBottomColor: colors.border }]} 
+      style={[styles.container, { backgroundColor: colors.surface }]} 
       onPress={onPress}
+      activeOpacity={0.7}
     >
       <View style={styles.avatarContainer}>
         <Image
           source={{ uri: match.other_user.photos[0] }}
-          style={styles.avatar}
+          style={[styles.avatar, { borderColor: colors.primary }]}
         />
         {match.unread_count > 0 && (
           <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
@@ -52,13 +53,14 @@ export function MatchCard({ match, onPress }: MatchCardProps) {
         <View style={styles.header}>
           <Text style={[styles.name, { color: colors.text }]}>{match.other_user.first_name}</Text>
           <Text style={[styles.age, { color: colors.textSecondary }]}>{match.other_user.age}</Text>
-          <Text style={[styles.time, { color: colors.textSecondary }]}>{formatLastMessageTime()}</Text>
         </View>
         
         <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
           {formatLastMessage()}
         </Text>
       </View>
+
+      <Text style={[styles.time, { color: colors.textSecondary }]}>{formatLastMessageTime()}</Text>
     </TouchableOpacity>
   );
 }
@@ -66,22 +68,31 @@ export function MatchCard({ match, onPress }: MatchCardProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    padding: 16,
-    borderBottomWidth: 1,
+    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 12,
+    marginVertical: 4,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   avatarContainer: {
     position: 'relative',
     marginRight: 12,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
   },
   unreadBadge: {
     position: 'absolute',
-    top: -5,
-    right: -5,
+    top: -2,
+    right: -2,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -90,7 +101,7 @@ const styles = StyleSheet.create({
   },
   unreadText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
   },
   content: {
@@ -99,21 +110,21 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     marginBottom: 4,
   },
   name: {
     fontSize: 16,
-    fontWeight: 'bold',
-    marginRight: 8,
+    fontWeight: '600',
+    marginRight: 6,
   },
   age: {
     fontSize: 14,
-    marginRight: 8,
   },
   time: {
     fontSize: 12,
-    marginLeft: 'auto',
+    alignSelf: 'flex-start',
+    marginTop: 2,
   },
   lastMessage: {
     fontSize: 14,

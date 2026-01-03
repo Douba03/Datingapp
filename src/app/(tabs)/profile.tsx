@@ -4,13 +4,13 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   Alert,
   RefreshControl,
   Dimensions,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -31,7 +31,7 @@ const { width: screenWidth } = Dimensions.get('window');
 
 function ProfileScreen() {
   const { user, profile, session, signOut, updateProfile, refreshProfile } = useAuth();
-  const params = useLocalSearchParams<{ viewUserId?: string; readonly?: string }>();
+  const params = useLocalSearchParams<{ viewUserId?: string; readonly?: string; returnTo?: string }>();
   const insets = useSafeAreaInsets();
   const { updateLocation, loading: locationLoading } = useLocationUpdate();
   const { stats, loading: statsLoading, refreshStats } = useProfileStats();
@@ -71,21 +71,34 @@ function ProfileScreen() {
       if (error) throw error;
       
       if (formData.age_min !== undefined || formData.age_max !== undefined || 
-          formData.max_distance_km !== undefined || formData.relationship_intent !== undefined) {
+          formData.max_distance_km !== undefined || formData.relationship_intent !== undefined ||
+          formData.seeking_genders !== undefined) {
+        const prefsUpdate: any = {
+          updated_at: new Date().toISOString(),
+        };
+        if (formData.age_min !== undefined) prefsUpdate.age_min = formData.age_min;
+        if (formData.age_max !== undefined) prefsUpdate.age_max = formData.age_max;
+        if (formData.max_distance_km !== undefined) prefsUpdate.max_distance_km = formData.max_distance_km;
+        if (formData.relationship_intent !== undefined) prefsUpdate.relationship_intent = formData.relationship_intent;
+        if (formData.seeking_genders !== undefined) prefsUpdate.seeking_genders = formData.seeking_genders;
+        
+        console.log('[Profile] Updating preferences:', prefsUpdate);
+        
         await supabase
           .from('preferences')
-          .update({
-          age_min: formData.age_min,
-          age_max: formData.age_max,
-          max_distance_km: formData.max_distance_km,
-          relationship_intent: formData.relationship_intent,
-          updated_at: new Date().toISOString(),
-          })
+          .update(prefsUpdate)
           .eq('user_id', user.id);
       }
       
-      await refreshProfile();
-      await refreshStats();
+      // Close modal first, then refresh in background
+      setShowEditModal(false);
+      
+      // Small delay to let modal close before refreshing
+      setTimeout(async () => {
+        await refreshProfile();
+        await refreshStats();
+      }, 100);
+      
       Alert.alert('Success', 'Profile updated!');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to update');
@@ -166,14 +179,14 @@ function ProfileScreen() {
 
   if (isReadonly && (otherLoading || !displayProfile)) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <Text style={styles.loadingText}>Loading profile...</Text>
+      <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading profile...</Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <ScrollView 
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -184,7 +197,13 @@ function ProfileScreen() {
         <View style={styles.heroSection}>
           {photos.length > 0 ? (
             <>
-              <Image source={{ uri: photos[activePhotoIndex] }} style={styles.heroImage} />
+              <Image 
+                source={{ uri: photos[activePhotoIndex] }} 
+                style={styles.heroImage}
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
+              />
               <LinearGradient
                 colors={['transparent', 'rgba(0,0,0,0.8)']}
                 style={styles.heroGradient}
@@ -236,7 +255,7 @@ function ProfileScreen() {
                 <View style={styles.premiumBadge}>
                   <Ionicons name="diamond" size={14} color="#fff" />
                   <Text style={styles.premiumBadgeText}>PRO</Text>
-            </View>
+                </View>
               )}
             </View>
             {displayProfile?.city && (
@@ -258,7 +277,17 @@ function ProfileScreen() {
 
           {/* Back Button for readonly */}
           {isReadonly && (
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => {
+                // Use returnTo if provided, otherwise go back
+                if (params.returnTo) {
+                  router.replace(params.returnTo as any);
+                } else {
+                  router.back();
+                }
+              }}
+            >
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
           )}
@@ -266,45 +295,45 @@ function ProfileScreen() {
 
         {/* Stats Cards */}
         <View style={styles.statsRow}>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
             <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.statIconBg}>
               <Ionicons name="heart" size={20} color="#fff" />
             </LinearGradient>
-                <Text style={styles.statNumber}>{safeStats.matches}</Text>
-                <Text style={styles.statLabel}>Matches</Text>
+                <Text style={[styles.statNumber, { color: colors.text }]}>{safeStats.matches}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Matches</Text>
               </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
             <LinearGradient colors={['#FF6B6B', '#EE5A5A']} style={styles.statIconBg}>
               <Ionicons name="flame" size={20} color="#fff" />
             </LinearGradient>
-                <Text style={styles.statNumber}>{safeStats.likes}</Text>
-                <Text style={styles.statLabel}>Likes</Text>
+                <Text style={[styles.statNumber, { color: colors.text }]}>{safeStats.likes}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Likes</Text>
               </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
             <LinearGradient colors={['#4ECDC4', '#44A08D']} style={styles.statIconBg}>
               <Ionicons name="star" size={20} color="#fff" />
             </LinearGradient>
-                <Text style={styles.statNumber}>{safeStats.superLikes}</Text>
-                <Text style={styles.statLabel}>Super Likes</Text>
+                <Text style={[styles.statNumber, { color: colors.text }]}>{safeStats.superLikes}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Super Likes</Text>
               </View>
             </View>
             
         {/* Bio Section */}
         {displayProfile?.bio && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About Me</Text>
-            <Text style={styles.bioText}>{displayProfile.bio}</Text>
+          <View style={[styles.section, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>About Me</Text>
+            <Text style={[styles.bioText, { color: colors.textSecondary }]}>{displayProfile.bio}</Text>
               </View>
         )}
 
         {/* Interests Section */}
         {displayProfile?.interests && displayProfile.interests.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Interests</Text>
+          <View style={[styles.section, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Interests</Text>
             <View style={styles.interestsGrid}>
               {displayProfile.interests.map((interest, index) => (
-                <View key={index} style={styles.interestChip}>
-                  <Text style={styles.interestText}>{interest}</Text>
+                <View key={index} style={[styles.interestChip, { backgroundColor: `${colors.primary}20` }]}>
+                  <Text style={[styles.interestText, { color: colors.text }]}>{interest}</Text>
               </View>
               ))}
             </View>
@@ -313,12 +342,12 @@ function ProfileScreen() {
 
         {/* Quick Actions */}
         {!isReadonly && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={[styles.section, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
             
             {/* See Who Liked You */}
             <TouchableOpacity
-              style={styles.actionCard}
+              style={[styles.actionCard, { borderBottomColor: colors.border }]}
               onPress={() => {
                 if (user?.is_premium) {
                   router.push('/(tabs)/premium/likes-you');
@@ -332,8 +361,8 @@ function ProfileScreen() {
                 <Ionicons name="eye" size={24} color="#fff" />
               </LinearGradient>
               <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>See Who Liked You</Text>
-                <Text style={styles.actionSubtitle}>
+                <Text style={[styles.actionTitle, { color: colors.text }]}>See Who Liked You</Text>
+                <Text style={[styles.actionSubtitle, { color: colors.textSecondary }]}>
                   {user?.is_premium ? `${safeStats.likes} people like you` : 'Premium feature'}
                 </Text>
               </View>
@@ -356,19 +385,24 @@ function ProfileScreen() {
 
             {/* Update Location */}
             <TouchableOpacity
-              style={styles.actionCard} 
+              style={[styles.actionCard, { borderBottomColor: colors.border }]}
               onPress={() => {
-                Alert.alert('Update Location', 'Update your location to find matches nearby?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Update', onPress: async () => {
-                    const { error } = await updateLocation();
-                    if (error) {
-                      Alert.alert('Error', 'Failed to update location');
-                    } else {
-                      Alert.alert('Success', 'Location updated!');
-                    }
-                  }}
-                ]);
+                Alert.alert(
+                  'Update Location',
+                  'Would you like to update your location to your current position?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Update', onPress: async () => {
+                      const result = await updateLocation();
+                      if (!result.error) {
+                        Alert.alert('Success', 'Your location has been updated!');
+                        refreshProfile();
+                      } else {
+                        Alert.alert('Error', 'Failed to update location');
+                      }
+                    }}
+                  ]
+                );
               }}
               disabled={locationLoading}
             >
@@ -376,8 +410,8 @@ function ProfileScreen() {
                 <Ionicons name="location" size={24} color="#fff" />
               </LinearGradient>
               <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Update Location</Text>
-                <Text style={styles.actionSubtitle}>
+                <Text style={[styles.actionTitle, { color: colors.text }]}>Update Location</Text>
+                <Text style={[styles.actionSubtitle, { color: colors.textSecondary }]}>
                   {displayProfile?.city || 'Set your location'}
                 </Text>
               </View>
@@ -387,27 +421,27 @@ function ProfileScreen() {
         )}
 
         {/* Preferences Summary */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dating Preferences</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Dating Preferences</Text>
           <View style={styles.preferencesGrid}>
             <View style={styles.prefItem}>
               <Ionicons name="heart-outline" size={20} color={colors.primary} />
-              <Text style={styles.prefLabel}>Looking for</Text>
-              <Text style={styles.prefValue}>
+              <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>Looking for</Text>
+              <Text style={[styles.prefValue, { color: colors.text }]}>
                 {displayProfile?.preferences?.relationship_intent?.replace(/_/g, ' ') || 'Not set'}
             </Text>
           </View>
             <View style={styles.prefItem}>
               <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-              <Text style={styles.prefLabel}>Age range</Text>
-              <Text style={styles.prefValue}>
+              <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>Age range</Text>
+              <Text style={[styles.prefValue, { color: colors.text }]}>
               {displayProfile?.preferences?.age_min || 18} - {displayProfile?.preferences?.age_max || 100}
             </Text>
           </View>
             <View style={styles.prefItem}>
               <Ionicons name="navigate-outline" size={20} color={colors.primary} />
-              <Text style={styles.prefLabel}>Distance</Text>
-              <Text style={styles.prefValue}>
+              <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>Distance</Text>
+              <Text style={[styles.prefValue, { color: colors.text }]}>
               {displayProfile?.preferences?.max_distance_km || 50} km
             </Text>
           </View>
@@ -417,7 +451,7 @@ function ProfileScreen() {
         {/* Sign Out Button */}
         {!isReadonly && (
           <TouchableOpacity 
-            style={styles.signOutButton}
+            style={[styles.signOutButton, { backgroundColor: colors.surface }]}
             onPress={async () => {
               // Use window.confirm for web, Alert for native
               if (Platform.OS === 'web') {

@@ -12,15 +12,18 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../components/theme/colors';
+import { colors as staticColors } from '../../components/theme/colors';
+import { useTheme } from '../../contexts/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../hooks/useAuth';
 import { usePurchases } from '../../hooks/usePurchases';
-import { supabase } from '../../services/supabase/client';
+import { PremiumSuccessModal } from '../../components/premium/PremiumSuccessModal';
 
 export default function PaymentScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ package: string }>();
   const { user, refreshProfile } = useAuth();
+  const { colors } = useTheme();
   const { 
     purchasePremium, 
     restorePurchases, 
@@ -30,19 +33,23 @@ export default function PaymentScreen() {
     isAvailable: iapAvailable,
     initialized: iapInitialized
   } = usePurchases();
-  const [skipLoading, setSkipLoading] = useState(false);
-
   const packageType = params.package || 'premium';
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [wasNotPremium, setWasNotPremium] = useState(!user?.is_premium);
 
-  // Listen for premium status changes and navigate
+  // Listen for premium status changes and show celebration
   useEffect(() => {
-    if (user?.is_premium) {
-      // User became premium, navigate to main app
-      Alert.alert('Welcome to Premium!', 'Enjoy all your premium features!', [
-        { text: 'Get Started', onPress: () => router.replace('/(tabs)') }
-      ]);
+    if (user?.is_premium && wasNotPremium) {
+      // User just became premium - show celebration!
+      setShowSuccessModal(true);
+      setWasNotPremium(false);
     }
-  }, [user?.is_premium]);
+  }, [user?.is_premium, wasNotPremium]);
+
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    router.replace('/(tabs)');
+  };
 
   const handlePurchasePremium = async () => {
     if (!user) {
@@ -62,195 +69,181 @@ export default function PaymentScreen() {
     }
   };
 
-  const handleSkipPayment = async () => {
+  // Development-only: Simulate purchase for testing
+  const handleDevPurchase = async () => {
     if (!user) return;
-
-    // For testing, let's just upgrade the user to premium
-    Alert.alert(
-      'Skip Payment (Testing)',
-      'Would you like to skip payment and upgrade to Premium for testing?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Upgrade to Premium',
-          onPress: async () => {
-            setSkipLoading(true);
-            try {
-              // Directly update user to premium for testing and mark onboarding as completed
-              const { error } = await supabase
-                .from('users')
-                .update({
-                  is_premium: true,
-                  premium_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-                  onboarding_completed: true
-                })
-                .eq('id', user.id);
-
-              if (error) {
-                console.error('[Payment] Error upgrading user:', error);
-                Alert.alert('Error', 'Failed to upgrade to Premium');
-                setSkipLoading(false);
-                return;
-              }
-
-              console.log('[Payment] Successfully upgraded user to Premium and marked onboarding complete');
-              await refreshProfile();
-
-              // Navigate to main app
-              Alert.alert('Success!', 'Welcome to Premium!', [
-                { text: 'Get Started', onPress: () => router.replace('/(tabs)') }
-              ]);
-            } catch (error) {
-              console.error('[Payment] Error upgrading user:', error);
-              Alert.alert('Error', 'Something went wrong');
-              setSkipLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    
+    const { PurchaseService } = await import('../../services/iap/purchaseService');
+    const result = await PurchaseService.simulatePurchase(user.id);
+    
+    if (result.success) {
+      await refreshProfile();
+      // Success modal will show automatically via useEffect
+    } else {
+      Alert.alert('Error', result.error || 'Failed to simulate purchase');
+    }
   };
 
+  // Development-only: Reset premium for testing
+  const handleDevReset = async () => {
+    if (!user) return;
+    
+    const { PurchaseService } = await import('../../services/iap/purchaseService');
+    const result = await PurchaseService.resetPremium(user.id);
+    
+    if (result.success) {
+      await refreshProfile();
+      Alert.alert('DEV: Premium Reset', 'Premium status cleared!');
+    } else {
+      Alert.alert('Error', result.error || 'Failed to reset premium');
+    }
+  };
+
+  // Force hide DEV buttons for production - set to false
+  const isDev = false; // Was: __DEV__
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        bounces={false}
+        overScrollMode="never"
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            disabled={purchaseLoading || skipLoading}
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Complete Your Purchase</Text>
+        {/* Header - Settings style */}
+        <View style={[styles.header, { backgroundColor: colors.surface }]}>
+          <View style={styles.headerLeft}>
+            <View style={styles.logoRow}>
+              <TouchableOpacity
+                style={styles.backButtonCircle}
+                onPress={() => router.back()}
+                disabled={purchaseLoading}
+              >
+                <Ionicons name="arrow-back" size={20} color={colors.text} />
+              </TouchableOpacity>
+              <View style={styles.titleContainer}>
+                <Text style={[styles.title, { color: colors.text }]}>Premium</Text>
+                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Complete your purchase</Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         {/* Premium Badge */}
         <View style={styles.badgeContainer}>
-          <View style={styles.badge}>
+          <View style={[styles.badge, { backgroundColor: `${colors.primary}20`, borderColor: colors.primary }]}>
             <Ionicons name="star" size={32} color="#FFD700" />
-            <Text style={styles.badgeText}>PREMIUM</Text>
+            <Text style={[styles.badgeText, { color: colors.primary }]}>PREMIUM</Text>
           </View>
         </View>
 
         {/* Order Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Order Summary</Text>
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.summaryTitle, { color: colors.text }]}>Order Summary</Text>
           
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Plan</Text>
-            <Text style={styles.summaryValue}>Premium Monthly</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Plan</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>Premium Monthly</Text>
           </View>
           
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Price</Text>
-            <Text style={styles.summaryValue}>$1.99</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Price</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>$1.99</Text>
           </View>
           
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Billing</Text>
-            <Text style={styles.summaryValue}>Monthly</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Billing</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>Monthly</Text>
           </View>
           
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           
           <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>$1.99</Text>
+            <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
+            <Text style={[styles.totalValue, { color: colors.primary }]}>$1.99</Text>
           </View>
         </View>
 
         {/* Features Reminder */}
-        <View style={styles.featuresCard}>
-          <Text style={styles.featuresTitle}>What you get:</Text>
+        <View style={[styles.featuresCard, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}30` }]}>
+          <Text style={[styles.featuresTitle, { color: colors.text }]}>What you get:</Text>
           <View style={styles.featuresList}>
-            <FeatureRow text="Unlimited swipes" />
-            <FeatureRow text="See who liked you" />
-            <FeatureRow text="Undo last swipes" />
-            <FeatureRow text="Profile boost (1/day)" />
-            <FeatureRow text="Advanced filters" />
-            <FeatureRow text="PRO badge" />
+            <FeatureRow text="Unlimited swipes" colors={colors} />
+            <FeatureRow text="See who liked you" colors={colors} />
+            <FeatureRow text="Undo last swipes" colors={colors} />
+            <FeatureRow text="Profile boost (1/day)" colors={colors} />
+            <FeatureRow text="Advanced filters" colors={colors} />
+            <FeatureRow text="PRO badge" colors={colors} />
           </View>
         </View>
 
         {/* Purchase Button */}
         <TouchableOpacity
-          style={[styles.paymentButton, (purchaseLoading || skipLoading) && styles.paymentButtonDisabled]}
+          style={[styles.paymentButton, purchaseLoading && styles.paymentButtonDisabled]}
           onPress={handlePurchasePremium}
-          disabled={purchaseLoading || skipLoading}
+          disabled={purchaseLoading}
         >
           {purchaseLoading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
-              <Ionicons name="star" size={24} color="#fff" />
+              <Ionicons name="star" size={20} color="#fff" />
               <Text style={styles.paymentButtonText}>
-                Subscribe to Premium - {price}/month
+                Subscribe - {price}/mo
               </Text>
             </>
           )}
         </TouchableOpacity>
 
-        {/* Restore Purchases */}
-        {iapAvailable && (
-          <TouchableOpacity
-            style={styles.restoreButton}
-            onPress={handleRestorePurchases}
-            disabled={restoring || purchaseLoading}
-          >
-            {restoring ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Text style={styles.restoreButtonText}>Restore Purchases</Text>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {/* Testing Option */}
-        <View style={styles.testingSection}>
-          <View style={styles.mobileNote}>
-            <Ionicons name="information-circle" size={20} color={colors.textSecondary} />
-            <Text style={styles.mobileNoteText}>
-              {iapAvailable 
-                ? 'Tap "Subscribe" to purchase through the App Store or Google Play.'
-                : 'In-App Purchases are only available on iOS and Android. Use "Skip Payment" for testing.'}
-            </Text>
+        {/* DEV: Test Buttons - only visible in development */}
+        {isDev && (
+          <View style={styles.devButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.devButton, { backgroundColor: colors.surfaceElevated }]}
+              onPress={handleDevPurchase}
+            >
+              <Ionicons name="flask" size={16} color={colors.success} />
+              <Text style={[styles.devButtonText, { color: colors.success }]}>
+                DEV: Activate Premium
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.devButton, { backgroundColor: colors.surfaceElevated }]}
+              onPress={handleDevReset}
+            >
+              <Ionicons name="refresh" size={16} color={colors.error} />
+              <Text style={[styles.devButtonText, { color: colors.error }]}>
+                DEV: Reset Premium
+              </Text>
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={handleSkipPayment}
-            disabled={purchaseLoading || skipLoading}
-          >
-            <Text style={styles.skipButtonText}>
-              {skipLoading ? 'Processing...' : 'Skip Payment (Testing Only)'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* Security Info */}
         <View style={styles.securityInfo}>
           <Ionicons name="shield-checkmark" size={20} color={colors.success} />
-          <Text style={styles.securityText}>
+          <Text style={[styles.securityText, { color: colors.textSecondary }]}>
             Your payment is secure and encrypted
           </Text>
         </View>
       </ScrollView>
+
+      {/* Premium Success Celebration Modal */}
+      <PremiumSuccessModal 
+        visible={showSuccessModal} 
+        onClose={handleSuccessClose} 
+      />
     </SafeAreaView>
   );
 }
 
 // Feature Row Component
-function FeatureRow({ text }: { text: string }) {
+function FeatureRow({ text, colors }: { text: string; colors: any }) {
   return (
     <View style={styles.featureRow}>
       <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-      <Text style={styles.featureRowText}>{text}</Text>
+      <Text style={[styles.featureRowText, { color: colors.text }]}>{text}</Text>
     </View>
   );
 }
@@ -258,64 +251,86 @@ function FeatureRow({ text }: { text: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 24,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    marginHorizontal: 4,
+    marginTop: 8,
+    marginBottom: 16,
+    borderRadius: 20,
+    shadowColor: staticColors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  backButton: {
-    marginRight: 12,
-    padding: 8,
+  headerLeft: {
+    flex: 1,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backButtonCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  titleContainer: {
+    flexDirection: 'column',
   },
   title: {
-    flex: 1,
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.text,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  subtitle: {
+    fontSize: 12,
+    marginTop: 1,
   },
   badgeContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: `${colors.primary}20`,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 30,
     borderWidth: 2,
-    borderColor: colors.primary,
   },
   badgeText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: colors.primary,
     letterSpacing: 1,
   },
   summaryCard: {
-    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.border,
   },
   summaryTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: colors.text,
     marginBottom: 16,
   },
   summaryRow: {
@@ -326,16 +341,13 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 15,
-    color: colors.textSecondary,
   },
   summaryValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: colors.text,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
     marginVertical: 12,
   },
   totalRow: {
@@ -344,50 +356,44 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: colors.text,
   },
   totalValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    color: colors.primary,
   },
   featuresCard: {
-    backgroundColor: `${colors.primary}10`,
     borderRadius: 16,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: `${colors.primary}30`,
   },
   featuresTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: colors.text,
     marginBottom: 16,
   },
   featuresList: {
-    gap: 12,
+    gap: 10,
   },
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   featureRowText: {
-    fontSize: 15,
-    color: colors.text,
+    fontSize: 14,
     fontWeight: '500',
   },
   paymentButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: staticColors.primary,
+    borderRadius: 14,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: 10,
     marginBottom: 12,
-    shadowColor: colors.primary,
+    shadowColor: staticColors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -397,57 +403,38 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   paymentButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
   },
-  restoreButton: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 8,
+  devButtonsContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
   },
-  restoreButtonText: {
-    fontSize: 15,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  testingSection: {
-    marginTop: 16,
-  },
-  mobileNote: {
+  devButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: `${colors.primary}10`,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    gap: 12,
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
   },
-  mobileNoteText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  skipButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  skipButtonText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textDecorationLine: 'underline',
+  devButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   securityInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 16,
+    marginTop: 12,
   },
   securityText: {
     fontSize: 13,
-    color: colors.textSecondary,
   },
 });
 

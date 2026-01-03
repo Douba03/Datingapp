@@ -1,11 +1,31 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase/client';
 import { User, Profile } from '../types/user';
 import { pointToLocation } from '../utils/location';
 import { PurchaseService } from '../services/iap/purchaseService';
 
-export function useAuth() {
+// Context type
+interface AuthContextType {
+  user: User | null;
+  profile: Profile | null;
+  session: Session | null;
+  loading: boolean;
+  supabaseError: string | null;
+  signUp: (email: string, password: string) => Promise<any>;
+  signIn: (email: string, password: string) => Promise<any>;
+  signOut: () => Promise<any>;
+  updateProfile: (updates: Partial<Profile>) => Promise<any>;
+  refreshProfile: () => Promise<any>;
+  resetPassword: (email: string) => Promise<any>;
+  updatePassword: (newPassword: string) => Promise<any>;
+}
+
+// Create context
+const AuthContext = createContext<AuthContextType | null>(null);
+
+// Internal hook that contains all the auth logic
+function useAuthInternal() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -28,8 +48,22 @@ export function useAuth() {
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('[useAuth] Error getting session:', error);
-          setSupabaseError(error.message);
+          console.warn('[useAuth] Error getting session:', error);
+          
+          // Handle invalid refresh token by signing out and clearing state
+          if (error.message?.includes('Refresh Token') || error.message?.includes('refresh_token')) {
+            console.log('[useAuth] Invalid refresh token, clearing session...');
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutErr) {
+              console.warn('[useAuth] Error during signOut:', signOutErr);
+            }
+          }
+          
+          // Don't set error for refresh token issues - just clear and continue
+          if (!error.message?.includes('Refresh Token')) {
+            setSupabaseError(error.message);
+          }
           setLoading(false);
           clearTimeout(loadingTimeout);
           return;
@@ -131,6 +165,43 @@ export function useAuth() {
     };
   }, []);
 
+  // Real-time subscription for user premium status changes
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('[useAuth] Setting up real-time subscription for user:', user.id);
+    
+    const subscription = supabase
+      .channel(`user-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('[useAuth] Real-time update received:', payload.new);
+          const newData = payload.new as any;
+          
+          // Update user state with new premium status
+          setUser(prev => prev ? {
+            ...prev,
+            is_premium: newData.is_premium || false,
+            premium_until: newData.premium_until,
+            onboarding_completed: newData.onboarding_completed ?? prev.onboarding_completed,
+          } : null);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('[useAuth] Cleaning up real-time subscription');
+      supabase.removeChannel(subscription);
+    };
+  }, [user?.id]);
+
   const fetchUserData = async (userId: string) => {
     try {
       console.log('[useAuth] Fetching user data for:', userId);
@@ -171,7 +242,8 @@ export function useAuth() {
           ]);
           dbUser = (dbUserResult as any)?.data || null;
           const dbError = (dbUserResult as any)?.error;
-          if (dbError && dbError.message !== 'Timeout') {
+          // PGRST116 means no rows found - this is expected for new users
+          if (dbError && dbError.message !== 'Timeout' && dbError.code !== 'PGRST116') {
             console.warn('[useAuth] Error fetching user from db:', dbError);
           }
           console.log('[useAuth] Fetched user from database:', { 
@@ -179,9 +251,52 @@ export function useAuth() {
             onboarding_completed: dbUser?.onboarding_completed,
             is_premium: dbUser?.is_premium 
           });
+          
+          // If user record doesn't exist, create it
+          if (!dbUser) {
+            console.log('[useAuth] Creating user record in database...');
+            const { data: newUser, error: createError } = await supabase
+              .from('users')
+              .upsert({
+                id: userId,
+                email: authUser.user.email || '',
+                auth_provider: authUser.user.app_metadata?.provider || 'email',
+                status: 'active',
+                is_premium: false,
+                onboarding_completed: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                last_seen_at: new Date().toISOString(),
+              }, { onConflict: 'id' })
+              .select()
+              .single();
+            
+            if (createError) {
+              console.warn('[useAuth] Error creating user record:', createError);
+            } else {
+              console.log('[useAuth] User record created successfully');
+              dbUser = newUser;
+            }
+          }
         } catch (err) {
           console.warn('[useAuth] Error or timeout fetching user data:', err);
           dbUser = null;
+        }
+
+        // Check if premium has expired
+        let isPremiumActive = dbUser?.is_premium || false;
+        if (isPremiumActive && dbUser?.premium_until) {
+          const premiumExpiry = new Date(dbUser.premium_until);
+          if (premiumExpiry <= new Date()) {
+            console.log('[useAuth] Premium has expired, updating status');
+            isPremiumActive = false;
+            // Update the database to reflect expired premium
+            supabase
+              .from('users')
+              .update({ is_premium: false, updated_at: new Date().toISOString() })
+              .eq('id', authUser.user.id)
+              .then(() => console.log('[useAuth] Premium status updated in database'));
+          }
         }
 
         // Create a basic user object from auth data
@@ -191,7 +306,7 @@ export function useAuth() {
           auth_provider: dbUser?.auth_provider || 'email',
           status: (dbUser?.status || 'active') as 'active' | 'suspended' | 'deleted',
           onboarding_completed: dbUser?.onboarding_completed || false,
-          is_premium: dbUser?.is_premium || false,
+          is_premium: isPremiumActive,
           premium_until: dbUser?.premium_until,
           grace_period_until: dbUser?.grace_period_until,
           created_at: dbUser?.created_at || new Date().toISOString(),
@@ -585,6 +700,13 @@ export function useAuth() {
         }
       }
       
+      // Explicitly fetch user data after successful login to ensure state is updated
+      if (data?.user && data?.session && !error) {
+        console.log('[useAuth] Login successful, explicitly fetching user data...');
+        setSession(data.session);
+        await fetchUserData(data.user.id);
+      }
+      
       return { data, error };
     } catch (err) {
       console.error('[useAuth] Login catch error:', err);
@@ -593,8 +715,29 @@ export function useAuth() {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    return { error };
+    try {
+      console.log('[useAuth] Signing out...');
+      
+      // Clear local state first
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      
+      // Then sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.warn('[useAuth] Sign out error:', error);
+      } else {
+        console.log('[useAuth] Signed out successfully');
+      }
+      
+      return { error };
+    } catch (err) {
+      console.error('[useAuth] Sign out catch error:', err);
+      // Even if there's an error, we've already cleared local state
+      return { error: err };
+    }
   };
 
   const refreshProfile = async () => {
@@ -602,6 +745,28 @@ export function useAuth() {
 
     try {
       console.log('[useAuth] Refreshing profile data...');
+      
+      // Fetch user data (including premium status) from users table
+      const { data: dbUser, error: userError } = await supabase
+        .from('users')
+        .select('is_premium, premium_until, onboarding_completed')
+        .eq('id', user.id)
+        .single();
+
+      if (!userError && dbUser) {
+        console.log('[useAuth] User premium status refreshed:', { 
+          is_premium: dbUser.is_premium,
+          premium_until: dbUser.premium_until 
+        });
+        
+        // Update user state with new premium status
+        setUser(prevUser => prevUser ? {
+          ...prevUser,
+          is_premium: dbUser.is_premium || false,
+          premium_until: dbUser.premium_until,
+          onboarding_completed: dbUser.onboarding_completed || prevUser.onboarding_completed,
+        } : null);
+      }
       
       // Fetch profile from database
       const { data: dbProfile, error: profileError } = await supabase
@@ -741,3 +906,26 @@ export function useAuth() {
   };
 }
 
+// Provider component
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const auth = useAuthInternal();
+  
+  return (
+    <AuthContext.Provider value={auth}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+// Hook to use auth context - this is what components should use
+export function useAuth() {
+  const context = useContext(AuthContext);
+  
+  // If no provider, fall back to internal hook (for backwards compatibility during migration)
+  if (context === null) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useAuthInternal();
+  }
+  
+  return context;
+}

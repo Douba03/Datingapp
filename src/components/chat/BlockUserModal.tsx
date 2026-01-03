@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface BlockUserModalProps {
   visible: boolean;
@@ -19,6 +20,7 @@ const blockReasons = [
 ];
 
 export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUserModalProps) {
+  const { colors, isDarkMode } = useTheme();
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [details, setDetails] = useState('');
   const [step, setStep] = useState<'select' | 'confirm'>('select');
@@ -58,7 +60,7 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
       onRequestClose={handleCancel}
     >
       <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
           {/* Red Gradient Top Border */}
           <View style={styles.topBorder} />
           
@@ -75,7 +77,7 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
               <Text style={styles.title}>Block User</Text>
               
               {/* Subtitle */}
-              <Text style={styles.subtitle}>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Why do you want to block <Text style={styles.userName}>{userName}</Text>?
               </Text>
 
@@ -87,37 +89,37 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
                 {blockReasons.map((reason) => (
                   <TouchableOpacity
                     key={reason.key}
-                    style={styles.reasonCard}
+                    style={[styles.reasonCard, { backgroundColor: isDarkMode ? colors.background : '#F9FAFB', borderColor: colors.border }]}
                     onPress={() => handleReasonSelect(reason.key)}
                     activeOpacity={0.7}
                   >
                     <View style={styles.reasonIcon}>
-                      <Ionicons name={reason.icon} size={24} color="#666" />
+                      <Ionicons name={reason.icon} size={24} color={colors.textSecondary} />
                     </View>
                     <View style={styles.reasonContent}>
-                      <Text style={styles.reasonLabel}>{reason.label}</Text>
-                      <Text style={styles.reasonDescription}>{reason.description}</Text>
+                      <Text style={[styles.reasonLabel, { color: colors.text }]}>{reason.label}</Text>
+                      <Text style={[styles.reasonDescription, { color: colors.textSecondary }]}>{reason.description}</Text>
                     </View>
-                    <Text style={styles.reasonArrow}>›</Text>
+                    <Text style={[styles.reasonArrow, { color: colors.textSecondary }]}>›</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
 
               {/* Info Box */}
-              <View style={styles.infoBox}>
-                <Ionicons name="information-circle" size={18} color="#666" style={styles.infoIcon} />
-                <Text style={styles.infoText}>
+              <View style={[styles.infoBox, { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' }]}>
+                <Ionicons name="information-circle" size={18} color={colors.primary} style={styles.infoIcon} />
+                <Text style={[styles.infoText, { color: isDarkMode ? colors.primary : '#1E40AF' }]}>
                   Blocking will prevent you from seeing or matching with this user again.
                 </Text>
               </View>
 
               {/* Cancel Button */}
               <TouchableOpacity 
-                style={styles.cancelButton}
+                style={[styles.cancelButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 onPress={handleCancel}
                 activeOpacity={0.8}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -125,7 +127,7 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
               {/* Confirm Step */}
               <Text style={styles.title}>Confirm Block</Text>
               
-              <Text style={styles.subtitle}>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Are you sure you want to block <Text style={styles.userName}>{userName}</Text>?
               </Text>
 
@@ -145,27 +147,27 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
               </View>
 
               {/* Warning Box */}
-              <View style={styles.warningBox}>
+              <View style={[styles.warningBox, { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7' }]}>
                 <View style={styles.warningHeader}>
-                  <Ionicons name="warning" size={18} color="#FF9500" style={styles.warningIcon} />
-                  <Text style={styles.warningTitle}>This action will:</Text>
+                  <Ionicons name="warning" size={18} color="#F59E0B" style={styles.warningIcon} />
+                  <Text style={[styles.warningTitle, { color: isDarkMode ? '#FBBF24' : '#92400E' }]}>This action will:</Text>
                 </View>
                 <View style={styles.warningList}>
-                  <Text style={styles.warningItem}>• Remove this match from your list</Text>
-                  <Text style={styles.warningItem}>• Prevent future matches with this user</Text>
-                  <Text style={styles.warningItem}>• Hide all messages from this conversation</Text>
-                  <Text style={styles.warningItem}>• Cannot be undone easily</Text>
+                  <Text style={[styles.warningItem, { color: isDarkMode ? '#FCD34D' : '#78350F' }]}>• Remove this match from your list</Text>
+                  <Text style={[styles.warningItem, { color: isDarkMode ? '#FCD34D' : '#78350F' }]}>• Prevent future matches with this user</Text>
+                  <Text style={[styles.warningItem, { color: isDarkMode ? '#FCD34D' : '#78350F' }]}>• Hide all messages from this conversation</Text>
+                  <Text style={[styles.warningItem, { color: isDarkMode ? '#FCD34D' : '#78350F' }]}>• Cannot be undone easily</Text>
                 </View>
               </View>
 
               {/* Action Buttons */}
               <View style={styles.buttonContainer}>
                 <TouchableOpacity 
-                  style={styles.backButton}
+                  style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
                   onPress={handleBack}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.backButtonText}>← Back</Text>
+                  <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>← Back</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity 

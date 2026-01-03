@@ -49,48 +49,59 @@ export default function WhoLikesYouScreen() {
     if (!user) return;
     
     try {
-      // Get users who liked the current user but haven't been matched yet
-      const { data: swipes, error } = await supabase
+      // Get users who liked the current user
+      const { data: swipesData, error: swipesError } = await supabase
         .from('swipes')
-        .select(`
-          swiper_user_id,
-          profiles!swipes_swiper_user_id_fkey (
-            user_id,
-            first_name,
-            date_of_birth,
-            photos,
-            city
-          )
-        `)
+        .select('swiper_user_id, created_at, action')
         .eq('target_user_id', user.id)
-        .in('action', ['like', 'superlike']);
+        .in('action', ['like', 'superlike'])
+        .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('[WhoLikesYou] Error fetching:', error);
+      if (swipesError) {
+        console.error('[WhoLikesYou] Error fetching swipes:', swipesError);
+        setLikedByUsers([]);
         return;
       }
 
-      if (swipes) {
-        const users: LikedByUser[] = swipes
-          .filter((s: any) => s.profiles)
-          .map((s: any) => {
-            const profile = s.profiles;
-            const birthDate = new Date(profile.date_of_birth);
-            const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-            
-            return {
-              id: profile.user_id,
-              first_name: profile.first_name,
-              age,
-              photos: profile.photos || [],
-              location: profile.city,
-            };
-          });
+      if (!swipesData || swipesData.length === 0) {
+        setLikedByUsers([]);
+        return;
+      }
+
+      // Get unique user IDs
+      const userIds = [...new Set(swipesData.map(s => s.swiper_user_id))];
+
+      // Fetch profiles for these users separately
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, date_of_birth, photos, city')
+        .in('user_id', userIds);
+
+      if (profilesError) {
+        console.error('[WhoLikesYou] Error fetching profiles:', profilesError);
+        setLikedByUsers([]);
+        return;
+      }
+
+      if (profilesData) {
+        const users: LikedByUser[] = profilesData.map((profile: any) => {
+          const birthDate = new Date(profile.date_of_birth);
+          const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+          
+          return {
+            id: profile.user_id,
+            first_name: profile.first_name,
+            age,
+            photos: profile.photos || [],
+            location: profile.city,
+          };
+        });
         
         setLikedByUsers(users);
       }
     } catch (err) {
       console.error('[WhoLikesYou] Error:', err);
+      setLikedByUsers([]);
     } finally {
       setLoading(false);
     }
@@ -99,15 +110,23 @@ export default function WhoLikesYouScreen() {
   // Non-premium view - show blurred preview
   if (!user?.is_premium) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        {/* Header - Settings style */}
         <View style={[styles.header, { backgroundColor: colors.surface }]}>
-          <View style={styles.headerContent}>
-            <Ionicons name="people" size={28} color={colors.primary} />
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Who Likes You</Text>
+          <View style={styles.headerLeft}>
+            <View style={styles.logoRow}>
+              <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
+                <Ionicons name="people" size={18} color="#fff" />
+              </View>
+              <View style={styles.titleContainer}>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>Who Likes You</Text>
+                <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>See your admirers</Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never">
           {/* Blurred Preview Cards */}
           <View style={styles.grid}>
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -157,17 +176,27 @@ export default function WhoLikesYouScreen() {
 
   // Premium view - show actual users
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      {/* Header - Settings style */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <View style={styles.headerContent}>
-          <Ionicons name="people" size={28} color={colors.primary} />
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Who Likes You</Text>
-          {likedByUsers.length > 0 && (
-            <View style={styles.countBadge}>
-              <Text style={styles.countText}>{likedByUsers.length}</Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.logoRow}>
+            <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
+              <Ionicons name="people" size={18} color="#fff" />
             </View>
-          )}
+            <View style={styles.titleContainer}>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>Who Likes You</Text>
+              <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+                {likedByUsers.length > 0 ? `${likedByUsers.length} admirers` : 'See your admirers'}
+              </Text>
+            </View>
+          </View>
         </View>
+        {likedByUsers.length > 0 && (
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>{likedByUsers.length}</Text>
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -186,7 +215,7 @@ export default function WhoLikesYouScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never">
           <View style={styles.grid}>
             {likedByUsers.map((likedUser) => (
               <TouchableOpacity
@@ -224,10 +253,44 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    paddingTop: 12,
+    paddingBottom: 12,
+    marginHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    borderRadius: 20,
+    shadowColor: '#FF6B9D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B9D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  titleContainer: {
+    flexDirection: 'column',
   },
   headerContent: {
     flexDirection: 'row',
@@ -235,9 +298,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    flex: 1,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    marginTop: 1,
   },
   countBadge: {
     backgroundColor: '#FF6B9D',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useChat } from '../../hooks/useChat';
 import { MatchCard } from '../../components/chat/MatchCard';
@@ -17,10 +17,17 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { colors as staticColors } from '../../components/theme/colors';
 
 function MatchesScreen() {
-  const { matches, loading } = useChat();
+  const { matches, loading, fetchMatches } = useChat();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+
+  // Refresh matches when screen comes into focus (e.g., returning from chat)
+  useFocusEffect(
+    useCallback(() => {
+      fetchMatches();
+    }, [])
+  );
 
   const handleMatchPress = (matchId: string) => {
     router.push(`/(tabs)/chat/${matchId}`);
@@ -43,7 +50,7 @@ function MatchesScreen() {
       style={[styles.container, { paddingTop: insets.top }]}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <View style={styles.headerLeft}>
           <View style={styles.logoRow}>
             <LinearGradient
@@ -53,8 +60,8 @@ function MatchesScreen() {
               <Ionicons name="chatbubbles" size={18} color="#fff" />
             </LinearGradient>
             <View style={styles.titleContainer}>
-              <Text style={styles.title}>Messages</Text>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.title, { color: colors.text }]}>Messages</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 {matches.length > 0 ? `${matches.length} conversation${matches.length !== 1 ? 's' : ''}` : 'Start chatting'}
               </Text>
             </View>
@@ -72,11 +79,11 @@ function MatchesScreen() {
 
       {matches.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconContainer}>
+          <View style={[styles.emptyIconContainer, { backgroundColor: `${colors.like}15` }]}>
             <Ionicons name="chatbubbles-outline" size={64} color={colors.like} />
           </View>
-          <Text style={styles.emptyTitle}>No Matches Yet</Text>
-          <Text style={styles.emptySubtitle}>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Matches Yet</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
             Start swiping to find your{'\n'}perfect match!
           </Text>
         </View>
