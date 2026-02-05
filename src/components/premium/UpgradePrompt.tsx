@@ -228,7 +228,7 @@ export function UpgradePrompt({
 
           {/* Price */}
           <View style={[styles.priceContainer, { borderColor: colors.border }]}>
-            <Text style={[styles.priceAmount, { color: colors.primary }]}>$1.99</Text>
+            <Text style={[styles.priceAmount, { color: colors.primary }]}>$5.99</Text>
             <Text style={[styles.pricePeriod, { color: colors.textSecondary }]}>per month</Text>
           </View>
 

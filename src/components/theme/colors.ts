@@ -1,47 +1,47 @@
 export const colors = {
-  // Core palette - Warm sunset/rose gold theme
-  primary: '#FF6B9D', // Warm rose pink
-  primaryDark: '#E91E63', // Deep pink
-  primaryLight: '#FFB6C1', // Light pink
-  secondary: '#FF8A65', // Warm coral
-  accent: '#FFD700', // Golden accent
+  // Core palette - Calafdoon: Calm, serious, trustworthy
+  primary: '#0B1F3B', // Deep Navy - trust & seriousness
+  primaryDark: '#061428', // Darker navy
+  primaryLight: '#1A3A5C', // Lighter navy
+  secondary: '#A8B8A6', // Soft Sage - calm & natural
+  accent: '#C8A15A', // Muted Gold - premium & elegant
   
   // Backgrounds
-  background: '#FAFBFC', // Clean white
+  background: '#F7F3EE', // Warm Off-white
   backgroundGradientStart: '#FFFFFF', // Pure white
-  backgroundGradientEnd: '#F8F9FA', // Very light gray
+  backgroundGradientEnd: '#F7F3EE', // Warm off-white
   surface: '#FFFFFF',
-  surfaceElevated: '#FFFBFC', // Slightly warm white
+  surfaceElevated: '#FDFCFA', // Slightly warm white
   
   // Text
-  text: '#2D1F3D', // Deep plum (warm dark)
-  textSecondary: '#8B7B8E', // Muted purple gray
+  text: '#1C1C1C', // Charcoal - clear & readable
+  textSecondary: '#6B7280', // Neutral gray
   textLight: '#FFFFFF',
   
   // Borders & Dividers
-  border: '#F3E5F5', // Light lavender border
-  borderLight: '#FCE4EC', // Very light pink
+  border: '#E5E7EB', // Light gray border
+  borderLight: '#F3F4F6', // Very light gray
   
   // Status colors
-  success: '#4CAF50', // Fresh green
-  successDark: '#388E3C', // Dark green
-  warning: '#FFB300', // Warm amber
-  error: '#FF5252', // Coral red
-  errorDark: '#D32F2F', // Dark red
+  success: '#10B981', // Emerald green - accept
+  successDark: '#059669', // Dark emerald
+  warning: '#F59E0B', // Amber
+  error: '#EF4444', // Red - decline
+  errorDark: '#DC2626', // Dark red
   
-  // Action buttons - Dating app specific
-  like: '#4CAF50', // Green for like
-  likeShadow: '#81C784', // Light green glow
-  pass: '#EF5350', // Red for dislike
-  passShadow: '#EF9A9A', // Light red glow
-  superlike: '#2196F3', // Bright blue for superlike
-  superlikeShadow: '#64B5F6', // Light blue glow
-  undo: '#9C27B0', // Purple for undo
-  undoShadow: '#CE93D8', // Light purple glow
+  // Action buttons - Request-based (replacing swipe actions)
+  like: '#10B981', // Green for accept/send request
+  likeShadow: '#6EE7B7', // Light green glow
+  pass: '#EF4444', // Red for decline
+  passShadow: '#FCA5A5', // Light red glow
+  superlike: '#0B1F3B', // Navy for priority request
+  superlikeShadow: '#1A3A5C', // Light navy glow
+  undo: '#6B7280', // Gray for undo
+  undoShadow: '#9CA3AF', // Light gray glow
   
   // Gradients (as string pairs)
-  gradientPink: ['#FF6B9D', '#FF8A80'],
-  gradientSunset: ['#FF6B6B', '#FFA500'],
-  gradientPurple: ['#9C27B0', '#E91E63'],
-  gradientGold: ['#FFD700', '#FFA000'],
+  gradientPrimary: ['#0B1F3B', '#1A3A5C'],
+  gradientGold: ['#C8A15A', '#D4AF37'],
+  gradientSuccess: ['#10B981', '#059669'],
+  gradientSage: ['#A8B8A6', '#8FA88D'],
 };

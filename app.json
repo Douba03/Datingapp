@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Mali Match",
+    "name": "Calafdoon",
     "slug": "partner-productivity-app",
     "version": "1.0.1",
     "orientation": "portrait",
@@ -17,10 +17,21 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.partnerproductivityapp",
+      "requireFullScreen": true,
+      "bundleIdentifier": "com.calafdoon.app",
+      "buildNumber": "11",
       "infoPlist": {
         "SKAdNetworkItems": [],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       }
     },
     "android": {
@@ -30,8 +41,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.partnerproductivityapp",
+      "package": "com.calafdoon.app",
       "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK",
+        "com.android.vending.BILLING",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
         "android.permission.WAKE_LOCK",
@@ -68,7 +83,7 @@
       "expo-asset",
       "expo-iap"
     ],
-    "scheme": "mali-match",
+    "scheme": "calafdoon",
     "notification": {
       "color": "#ffffff",
       "androidMode": "default",
@@ -80,8 +95,16 @@
       },
       "eas": {
         "projectId": "15627f4a-7fda-4946-8e05-621b6ce726ce"
-      }
+      },
+      "supabaseUrl": "https://zfnwtnqwokwvuxxwxgsr.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpmbnd0bnF3b2t3dnV4eHd4Z3NyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5MzgwNTUsImV4cCI6MjA3MzUxNDA1NX0.Q9MA7FNex8ZrJ_V9wux4OwrvKhsKGjZfxsf0qH-yz4Q"
     },
-    "owner": "qossai03"
+    "owner": "qossai03",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/15627f4a-7fda-4946-8e05-621b6ce726ce"
+    }
   }
 }

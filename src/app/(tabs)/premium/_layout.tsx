@@ -14,6 +14,7 @@ export default function PremiumLayout() {
       }}
     >
       <Stack.Screen name="index" />
+      <Stack.Screen name="dashboard" />
       <Stack.Screen name="likes-you" />
     </Stack>
   );

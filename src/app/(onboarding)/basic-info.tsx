@@ -20,7 +20,7 @@ import { useOnboarding } from '../../contexts/OnboardingContext';
 export default function BasicInfoScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { updateData } = useOnboarding();
+  const { updateData, saveToDatabase } = useOnboarding();
   const [firstName, setFirstName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [gender, setGender] = useState<string | null>(null);
@@ -115,7 +115,10 @@ export default function BasicInfoScreen() {
       customGender: gender === 'custom' ? customGender : undefined,
     });
     
-    router.push('/(onboarding)/photos');
+    // Save progress to database
+    setTimeout(() => saveToDatabase(), 100);
+    
+    router.push('/(onboarding)/faith-culture');
   };
 
   return (
@@ -146,7 +149,7 @@ export default function BasicInfoScreen() {
             />
           </View>
           
-          <Text style={styles.stepText}>Step 1 of 7</Text>
+          <Text style={styles.stepText}>Step 1 of 8</Text>
         </View>
 
         <ScrollView
@@ -159,23 +162,23 @@ export default function BasicInfoScreen() {
           <View style={styles.content}>
             {/* Title */}
             <View style={styles.titleSection}>
-              <Ionicons name="hand-left" size={48} color="#FF6B9D" />
-              <Text style={styles.title}>Let's get to know you!</Text>
+              <Ionicons name="person-circle" size={48} color={colors.primary} />
+              <Text style={styles.title}>Personal Information</Text>
               <Text style={styles.subtitle}>
-                This info will be shown on your profile
+                Please provide accurate details for your profile
               </Text>
             </View>
 
             {/* First Name */}
             <View style={styles.inputSection}>
-              <Text style={styles.label}>What's your first name?</Text>
+              <Text style={styles.label}>First Name</Text>
               <View style={styles.inputWrapper}>
                 <View style={styles.inputIconContainer}>
                   <Ionicons name="person" size={20} color={colors.primary} />
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your name"
+                  placeholder="Your Name"
                   placeholderTextColor={colors.textSecondary}
                   value={firstName}
                   onChangeText={setFirstName}
@@ -187,7 +190,7 @@ export default function BasicInfoScreen() {
 
             {/* Date of Birth */}
             <View style={styles.inputSection}>
-              <Text style={styles.label}>When's your birthday? 🎂</Text>
+              <Text style={styles.label}>Date of Birth</Text>
               <View style={styles.dateInputContainer}>
                 <View style={styles.dateInputWrapper}>
                   <Text style={styles.dateInputLabel}>Day</Text>
@@ -253,7 +256,7 @@ export default function BasicInfoScreen() {
 
             {/* Gender */}
             <View style={styles.inputSection}>
-              <Text style={styles.label}>I am a...</Text>
+              <Text style={styles.label}>Gender</Text>
               <View style={styles.genderOptions}>
                 {genderOptions.map((option) => (
                   <TouchableOpacity

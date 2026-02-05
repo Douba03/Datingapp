@@ -18,35 +18,23 @@ import { useOnboarding } from '../../contexts/OnboardingContext';
 
 const BIO_MAX_LENGTH = 500;
 
-const bioPrompts = [
-  "I'm passionate about...",
-  "My ideal weekend involves...",
-  "I'm looking for someone who...",
-  "You should know that I...",
-  "My friends describe me as...",
-];
 
 export default function BioScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { updateData } = useOnboarding();
+  const { updateData, saveToDatabase } = useOnboarding();
   const [bio, setBio] = useState('');
 
-  const handlePromptSelect = (prompt: string) => {
-    if (bio.trim()) {
-      setBio(bio + '\n\n' + prompt);
-    } else {
-      setBio(prompt);
-    }
-  };
 
   const handleContinue = () => {
     updateData({ bio });
+    setTimeout(() => saveToDatabase(), 100);
     router.push('/(onboarding)/interests');
   };
 
   const handleSkip = () => {
     updateData({ bio: '' });
+    setTimeout(() => saveToDatabase(), 100);
     router.push('/(onboarding)/interests');
   };
 
@@ -74,7 +62,7 @@ export default function BioScreen() {
             />
           </View>
           
-          <Text style={styles.stepText}>Step 3 of 7</Text>
+          <Text style={styles.stepText}>Step 5 of 8</Text>
         </View>
 
         <ScrollView
@@ -86,10 +74,10 @@ export default function BioScreen() {
           <View style={styles.content}>
             {/* Title */}
             <View style={styles.titleSection}>
-              <Ionicons name="create" size={48} color="#FF6B9D" />
-              <Text style={styles.title}>Tell your story</Text>
+              <Ionicons name="document-text" size={48} color={colors.primary} />
+              <Text style={styles.title}>About Yourself</Text>
               <Text style={styles.subtitle}>
-                Let others know what makes you unique!
+                Share a brief introduction for potential matches
               </Text>
             </View>
 
@@ -98,7 +86,7 @@ export default function BioScreen() {
               <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.bioInput}
-                  placeholder="Write something about yourself..."
+                  placeholder="Write about your background, family values, and what you are looking for in a partner..."
                 placeholderTextColor={colors.textSecondary}
                 value={bio}
                 onChangeText={setBio}
@@ -122,39 +110,15 @@ export default function BioScreen() {
               </View>
             </View>
 
-            {/* Prompts Section */}
-            <View style={styles.promptsSection}>
-              <View style={styles.promptsHeader}>
-                <View style={styles.promptsIconContainer}>
-                  <Ionicons name="bulb" size={18} color="#FFB347" />
-                </View>
-                <Text style={styles.promptsTitle}>Need inspiration?</Text>
-              </View>
-              <View style={styles.promptsList}>
-                {bioPrompts.map((prompt, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.promptChip}
-                    onPress={() => handlePromptSelect(prompt)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.promptText}>{prompt}</Text>
-                    <View style={styles.addPromptIcon}>
-                      <Ionicons name="add" size={14} color={colors.primary} />
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
 
             {/* Tips Card */}
             <View style={styles.tipsCard}>
-              <Text style={styles.tipsTitle}>Pro Tips</Text>
+              <Text style={styles.tipsTitle}>Tips</Text>
               <View style={styles.tipsList}>
-                <TipItem text="Be authentic and genuine" />
-                <TipItem text="Mention your hobbies" />
-                <TipItem text="Add a touch of humor" />
-                <TipItem text="Keep it positive!" />
+                <TipItem text="Be honest about your intentions" />
+                <TipItem text="Mention your family involvement" />
+                <TipItem text="Share your future goals" />
+                <TipItem text="Keep it respectful" />
               </View>
             </View>
           </View>
@@ -299,63 +263,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     fontWeight: '600',
-  },
-  promptsSection: {
-    marginBottom: 24,
-  },
-  promptsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-    gap: 10,
-  },
-  promptsIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 179, 71, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  promptsTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  promptsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  promptChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 24,
-    paddingVertical: 10,
-    paddingLeft: 16,
-    paddingRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  promptText: {
-    fontSize: 14,
-    color: colors.text,
-    fontWeight: '500',
-  },
-  addPromptIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: `${colors.primary}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   tipsCard: {
     backgroundColor: `${colors.primary}08`,

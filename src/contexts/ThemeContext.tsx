@@ -45,78 +45,78 @@ interface ThemeColors {
   undoShadow: string;
 }
 
-// Light theme colors
+// Light theme colors - Calafdoon: Calm, serious, trustworthy
 const lightColors: ThemeColors = {
-  primary: '#FF6B9D',
-  primaryDark: '#E91E63',
-  primaryLight: '#FFB6C1',
-  secondary: '#FF8A65',
-  accent: '#FFD700',
+  primary: '#0B1F3B', // Deep Navy
+  primaryDark: '#061428',
+  primaryLight: '#1A3A5C',
+  secondary: '#A8B8A6', // Soft Sage
+  accent: '#C8A15A', // Muted Gold
   
-  background: '#FAFBFC',
+  background: '#F7F3EE', // Warm Off-white
   backgroundGradientStart: '#FFFFFF',
-  backgroundGradientEnd: '#F8F9FA',
+  backgroundGradientEnd: '#F7F3EE',
   surface: '#FFFFFF',
-  surfaceElevated: '#FFFBFC',
+  surfaceElevated: '#FDFCFA',
   
-  text: '#2D1F3D',
-  textSecondary: '#8B7B8E',
+  text: '#1C1C1C', // Charcoal
+  textSecondary: '#6B7280',
   textLight: '#FFFFFF',
   
-  border: '#F3E5F5',
-  borderLight: '#FCE4EC',
+  border: '#E5E7EB',
+  borderLight: '#F3F4F6',
   
-  success: '#4CAF50',
-  successDark: '#388E3C',
-  warning: '#FFB300',
-  error: '#FF5252',
-  errorDark: '#D32F2F',
+  success: '#10B981', // Emerald
+  successDark: '#059669',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  errorDark: '#DC2626',
   
-  like: '#4CAF50',
-  likeShadow: '#81C784',
-  pass: '#EF5350',
-  passShadow: '#EF9A9A',
-  superlike: '#2196F3',
-  superlikeShadow: '#64B5F6',
-  undo: '#9C27B0',
-  undoShadow: '#CE93D8',
+  like: '#10B981',
+  likeShadow: '#6EE7B7',
+  pass: '#EF4444',
+  passShadow: '#FCA5A5',
+  superlike: '#0B1F3B',
+  superlikeShadow: '#1A3A5C',
+  undo: '#6B7280',
+  undoShadow: '#9CA3AF',
 };
 
-// Dark theme colors
+// Dark theme colors - Calafdoon dark mode
 const darkColors: ThemeColors = {
-  primary: '#FF6B9D',
-  primaryDark: '#FF4081',
-  primaryLight: '#FF8A80',
-  secondary: '#FF8A65',
-  accent: '#FFD700',
+  primary: '#4A6FA5', // Lighter navy for dark mode
+  primaryDark: '#0B1F3B',
+  primaryLight: '#6B8FC5',
+  secondary: '#A8B8A6', // Soft Sage
+  accent: '#D4AF37', // Brighter gold for dark mode
   
-  background: '#000000',
-  backgroundGradientStart: '#000000',
-  backgroundGradientEnd: '#0A0A0A',
-  surface: '#1A1A1A',
-  surfaceElevated: '#252525',
+  background: '#0F1419', // Dark navy-black
+  backgroundGradientStart: '#0F1419',
+  backgroundGradientEnd: '#1A2634',
+  surface: '#1A2634', // Dark navy surface
+  surfaceElevated: '#243447',
   
-  text: '#FFFFFF',
-  textSecondary: '#A0A0A0',
+  text: '#F7F3EE', // Warm off-white
+  textSecondary: '#9CA3AF',
   textLight: '#FFFFFF',
   
-  border: '#333333',
-  borderLight: '#404040',
+  border: '#374151',
+  borderLight: '#4B5563',
   
-  success: '#66BB6A',
-  successDark: '#4CAF50',
-  warning: '#FFC107',
-  error: '#EF5350',
-  errorDark: '#E53935',
+  success: '#34D399', // Brighter emerald
+  successDark: '#10B981',
+  warning: '#FBBF24',
+  error: '#F87171',
+  errorDark: '#EF4444',
   
-  like: '#66BB6A',
-  likeShadow: '#81C784',
-  pass: '#EF5350',
-  passShadow: '#E57373',
-  superlike: '#42A5F5',
-  superlikeShadow: '#64B5F6',
-  undo: '#AB47BC',
-  undoShadow: '#CE93D8',
+  like: '#34D399',
+  likeShadow: '#6EE7B7',
+  pass: '#F87171',
+  passShadow: '#FCA5A5',
+  superlike: '#4A6FA5',
+  superlikeShadow: '#6B8FC5',
+  undo: '#9CA3AF',
+  undoShadow: '#D1D5DB',
 };
 
 interface ThemeContextType {
@@ -128,7 +128,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEME_STORAGE_KEY = '@mali_match_theme';
+const THEME_STORAGE_KEY = '@calafdoon_theme';
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(false);

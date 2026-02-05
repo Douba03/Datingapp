@@ -1,6 +1,16 @@
 export type UserStatus = 'active' | 'suspended' | 'deleted';
 export type GenderType = 'man' | 'woman' | 'non_binary' | 'prefer_not_to_say' | 'custom';
 export type RelationshipIntent = 'serious_relationship' | 'open_to_long_term' | 'not_sure' | 'casual';
+
+// Religious and cultural types for Calafdoon
+export type ReligiousPractice = 'very_practicing' | 'practicing' | 'somewhat_practicing' | 'cultural' | 'not_practicing';
+export type PrayerFrequency = 'five_daily' | 'some_daily' | 'friday_only' | 'occasionally' | 'rarely' | 'prefer_not_say';
+export type HijabPreference = 'always' | 'sometimes' | 'not_currently' | 'prefer_not_say' | 'not_applicable';
+export type DietaryPreference = 'strict_halal' | 'halal_preferred' | 'no_pork' | 'no_restriction';
+export type FamilyInvolvement = 'very_involved' | 'somewhat_involved' | 'minimal' | 'prefer_not_say';
+export type MarriageTimeline = 'within_year' | 'one_to_two_years' | 'when_ready' | 'not_sure';
+export type EducationLevel = 'high_school' | 'some_college' | 'bachelors' | 'masters' | 'doctorate' | 'other';
+export type LivingSituation = 'with_family' | 'alone' | 'with_roommates' | 'other';
 export type SwipeAction = 'like' | 'pass' | 'superlike';
 export type MatchStatus = 'active' | 'unmatched' | 'blocked';
 export type SubscriptionPlan = 'free' | 'premium_monthly' | 'premium_quarterly' | 'premium_annual';
@@ -45,6 +55,27 @@ export interface Profile {
   verification_photo?: string;
   age: number;
   preferences?: Preferences;
+  
+  // Religious & Cultural fields
+  religious_practice?: ReligiousPractice;
+  prayer_frequency?: PrayerFrequency;
+  hijab_preference?: HijabPreference;
+  dietary_preference?: DietaryPreference;
+  family_involvement?: FamilyInvolvement;
+  marriage_timeline?: MarriageTimeline;
+  education_level?: EducationLevel;
+  occupation?: string;
+  living_situation?: LivingSituation;
+  has_children?: boolean;
+  wants_children?: boolean;
+  ethnicity?: string;
+  languages?: string[];
+  tribe_clan?: string; // Somali clan/tribe
+  
+  // Compatibility scoring (calculated at runtime)
+  compatibilityScore?: number;
+  compatibilityMatches?: string[];
+  compatibilityMismatches?: string[];
 }
 
 export interface Preferences {

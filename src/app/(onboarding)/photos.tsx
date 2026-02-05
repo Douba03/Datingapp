@@ -23,7 +23,7 @@ const MIN_PHOTOS = 2;
 export default function PhotosScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { updateData } = useOnboarding();
+  const { updateData, saveToDatabase } = useOnboarding();
   const { pickAndUploadPhoto, uploading } = usePhotoUpload();
   const [photos, setPhotos] = useState<string[]>([]);
 
@@ -43,7 +43,13 @@ export default function PhotosScreen() {
 
       if (!url) return;
 
-      setPhotos([...photos, url]);
+      const updatedPhotos = [...photos, url];
+      setPhotos(updatedPhotos);
+      
+      // Auto-save to context and database immediately
+      updateData({ photos: updatedPhotos });
+      setTimeout(() => saveToDatabase(), 100);
+      
       Alert.alert('Success! 📸', 'Photo uploaded successfully!');
     } catch (error) {
       Alert.alert('Error', 'Failed to upload photo');
@@ -51,7 +57,11 @@ export default function PhotosScreen() {
   };
 
   const removePhoto = (index: number) => {
-    setPhotos(photos.filter((_, i) => i !== index));
+    const updatedPhotos = photos.filter((_, i) => i !== index);
+    setPhotos(updatedPhotos);
+    
+    // Auto-save to context immediately
+    updateData({ photos: updatedPhotos });
   };
 
   const handleContinue = () => {
@@ -84,7 +94,7 @@ export default function PhotosScreen() {
           />
         </View>
         
-        <Text style={styles.stepText}>Step 2 of 7</Text>
+        <Text style={styles.stepText}>Step 4 of 8</Text>
       </View>
 
       <ScrollView
@@ -95,10 +105,12 @@ export default function PhotosScreen() {
         <View style={styles.content}>
           {/* Title */}
           <View style={styles.titleSection}>
-            <Text style={styles.emoji}>📸</Text>
-            <Text style={styles.title}>Add your best photos</Text>
+            <View style={styles.iconContainer}>
+              <Ionicons name="camera" size={40} color={colors.primary} />
+            </View>
+            <Text style={styles.title}>Profile Photos</Text>
             <Text style={styles.subtitle}>
-              Upload at least {MIN_PHOTOS} photos. Your first photo will be your main picture!
+              Upload clear, modest photos. Your first photo will be your main display.
             </Text>
           </View>
 
@@ -278,9 +290,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     alignItems: 'center',
   },
-  emoji: {
-    fontSize: 48,
-    marginBottom: 12,
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: `${colors.primary}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   title: {
     fontSize: 28,
@@ -320,15 +337,16 @@ const styles = StyleSheet.create({
   photoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
     marginBottom: 24,
   },
   photoContainer: {
-    width: '31%',
+    width: '48%',
     aspectRatio: 3 / 4,
     borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
+    marginBottom: 12,
   },
   photo: {
     width: '100%',
@@ -363,7 +381,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addPhotoButton: {
-    width: '31%',
+    width: '48%',
     aspectRatio: 3 / 4,
     borderRadius: 16,
     borderWidth: 2,
@@ -372,6 +390,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.surface,
+    marginBottom: 12,
   },
   addIconContainer: {
     width: 48,

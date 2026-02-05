@@ -6,7 +6,7 @@ node_modules/
 # Expo
 .expo/
 dist/
-web-build/
+web-b/Users/mohamadalrayes/Desktop/QossaiApp/Datingapp/.expouild/
 expo-env.d.ts
 .expomkdir/
 
@@ -78,3 +78,10 @@ verify-*.js
 # Build scripts
 build-*.bat
 *.bat
+
+# Environment variables - CRITICAL: Never commit these!
+.env
+.env.local
+.env.production
+.env.development
+.env*.local

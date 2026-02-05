@@ -9,6 +9,7 @@ import {
   Alert,
   ScrollView,
   TouchableOpacity,
+  ImageBackground,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,11 +70,21 @@ export default function LoginScreen() {
     
     setLoading(true);
     try {
-      console.log(`Attempting to ${isSignUp ? 'sign up' : 'sign in'} with email: ${emailNormalized}`);
+      console.log('========================================');
+      console.log(`[Login] 🔐 ${isSignUp ? 'SIGNUP' : 'SIGNIN'} ATTEMPT`);
+      console.log('[Login] Email:', emailNormalized);
+      console.log('[Login] Is signup:', isSignUp);
+      console.log('========================================');
       
       const { data, error } = isSignUp 
         ? await signUp(emailNormalized, password)
         : await signIn(emailNormalized, password);
+      
+      console.log('========================================');
+      console.log('[Login] Auth response received');
+      console.log('[Login] Has data:', !!data);
+      console.log('[Login] Has error:', !!error);
+      console.log('========================================');
 
       if (error) {
         // Use warn instead of error to avoid red error overlay in dev
@@ -81,6 +92,9 @@ export default function LoginScreen() {
         
         // Handle specific error cases
         let errorMsg = (error instanceof Error ? error.message : (error as any)?.message) || 'An unknown error occurred';
+        
+        // Log the full error for debugging
+        console.log('[Login] Full error details:', JSON.stringify(error, null, 2));
         
         if (errorMsg.includes('Invalid login credentials')) {
           // For invalid credentials, we can't distinguish between wrong email and wrong password
@@ -100,54 +114,23 @@ export default function LoginScreen() {
           setErrorMessage('Network error. Please check your connection and try again.');
           setErrorType('general');
         } else {
-          // Make error message more user-friendly
-          setErrorMessage('Unable to sign in. Please check your credentials and try again.');
+          // Show the actual error message for debugging
+          setErrorMessage(errorMsg || 'Unable to sign in. Please check your credentials and try again.');
           setErrorType('general');
         }
       } else if (isSignUp && data?.user?.identities?.length === 0) {
         // Handle the case where the email is already registered
         Alert.alert('Signup Failed', 'This email is already registered. Please sign in instead.');
       } else {
-        console.log('Authentication successful!');
+        console.log('[Login] ✅ Authentication successful!');
         
-        // Decide destination immediately to avoid UI stall
-        try {
-          const authUserId = data?.user?.id;
-          if (authUserId) {
-            // Add timeout protection to prevent hanging
-            let dbProfile: any = null;
-            try {
-              const profileResult = await Promise.race([
-                supabase
-                  .from('profiles')
-                  .select('first_name,bio,photos,interests')
-                  .eq('user_id', authUserId)
-                  .single(),
-                new Promise((resolve) =>
-                  setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 5000)
-                ) as Promise<any>
-              ]);
-              dbProfile = (profileResult as any)?.data || null;
-            } catch (err) {
-              console.warn('[Login] Error or timeout checking profile for routing:', err);
-              dbProfile = null;
-            }
-
-            const emailPrefix = (emailNormalized || '').split('@')[0];
-            const hasCompletedOnboarding = !!dbProfile && (
-              (dbProfile.first_name && dbProfile.first_name !== emailPrefix) ||
-              (dbProfile.bio && dbProfile.bio.length > 0) ||
-              (Array.isArray(dbProfile.photos) && dbProfile.photos.length > 0) ||
-              (Array.isArray(dbProfile.interests) && dbProfile.interests.length > 0)
-            );
-
-            const dest = hasCompletedOnboarding ? '/(tabs)' : '/(onboarding)/welcome';
-            router.replace(dest);
-          } else {
-            router.replace('/');
-          }
-        } catch (routingErr) {
-          console.error('Routing error:', routingErr);
+        // For new signups, always go to onboarding
+        // For existing users, _layout.tsx will handle routing based on onboarding_completed
+        if (isSignUp) {
+          console.log('[Login] New signup → routing to onboarding/welcome');
+          router.replace('/(onboarding)/welcome');
+        } else {
+          console.log('[Login] Existing user → routing to root, _layout will handle');
           router.replace('/');
         }
       }
@@ -200,17 +183,23 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    <ImageBackground
+      source={require('../../../assets/images/wedding-couple.jpg')}
+      style={styles.backgroundImage}
+      resizeMode="cover"
     >
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+      <View style={styles.overlay} />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <View style={styles.content}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          <View style={styles.content}>
           {/* Logo & App Name */}
           <View style={styles.logoContainer}>
             <LinearGradient
@@ -219,8 +208,8 @@ export default function LoginScreen() {
             >
               <Ionicons name="heart" size={40} color="#fff" />
             </LinearGradient>
-            <Text style={styles.appName}>Mali Match</Text>
-            <Text style={styles.tagline}>Find your perfect match</Text>
+            <Text style={styles.appName}>Calafdoon</Text>
+            <Text style={styles.tagline}>Hitta din livskamrat</Text>
           </View>
 
           <View style={styles.form}>
@@ -335,10 +324,20 @@ export default function LoginScreen() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+  </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
   errorText: {
     color: staticColors.error,
     fontSize: 14,
@@ -351,7 +350,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: staticColors.background,
+    backgroundColor: 'transparent',
   },
   scrollContent: {
     flexGrow: 1,
@@ -382,33 +381,40 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 32,
     fontWeight: '800',
-    color: staticColors.primary,
+    color: '#FFFFFF',
     letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   tagline: {
     fontSize: 14,
-    color: staticColors.textSecondary,
+    color: '#FFFFFF',
     marginTop: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   form: {
     gap: 16,
   },
   input: {
-    backgroundColor: staticColors.surface,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderWidth: 1.5,
-    borderColor: staticColors.border,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 14,
     paddingHorizontal: 18,
     paddingVertical: 16,
     fontSize: 16,
+    color: '#000',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   authButton: {
     marginTop: 8,
@@ -422,9 +428,12 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   forgotPasswordText: {
-    color: staticColors.primary,
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   resetSentContainer: {
     backgroundColor: `${staticColors.success}20`,
@@ -446,9 +455,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   resetBackLink: {
-    color: staticColors.primary,
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     marginTop: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });

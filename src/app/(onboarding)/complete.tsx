@@ -110,6 +110,22 @@ export default function CompleteScreen() {
         country: onboardingData.country || null,
         interests: onboardingData.interests || [],
         age: calculatedAge,
+        // Cultural & Religious fields
+        religious_practice: onboardingData.religiousPractice || null,
+        prayer_frequency: onboardingData.prayerFrequency || null,
+        hijab_preference: onboardingData.hijabPreference || null,
+        dietary_preference: onboardingData.dietaryPreference || null,
+        family_involvement: onboardingData.familyInvolvement || null,
+        marriage_timeline: onboardingData.marriageTimeline || null,
+        // Background fields
+        education_level: onboardingData.educationLevel || null,
+        occupation: onboardingData.occupation || null,
+        living_situation: onboardingData.livingSituation || null,
+        has_children: onboardingData.hasChildren || null,
+        wants_children: onboardingData.wantsChildren || null,
+        ethnicity: onboardingData.ethnicity || null,
+        languages: onboardingData.languages || [],
+        tribe_clan: onboardingData.tribeClan || null,
       };
 
       const preferencesData = {
@@ -119,40 +135,88 @@ export default function CompleteScreen() {
         age_max: onboardingData.ageMax || 100,
         max_distance_km: onboardingData.maxDistance || 50,
         relationship_intent: onboardingData.relationshipIntent || 'casual',
+        values: onboardingData.values || [],
       };
 
-      console.log('[Complete] Saving profile data:', profileData);
-      console.log('[Complete] Saving preferences data:', preferencesData);
+      console.log('========================================');
+      console.log('[Complete] 📊 RAW ONBOARDING DATA:');
+      console.log('[Complete] onboardingData:', JSON.stringify(onboardingData, null, 2));
+      console.log('========================================');
+      console.log('[Complete] 📊 SAVING PROFILE DATA:');
+      console.log('[Complete] Photos:', profileData.photos);
+      console.log('[Complete] Bio:', profileData.bio);
+      console.log('[Complete] First Name:', profileData.first_name);
+      console.log('[Complete] Gender:', profileData.gender);
+      console.log('[Complete] Interests:', profileData.interests);
+      console.log('[Complete] Religious Practice:', profileData.religious_practice);
+      console.log('[Complete] All Profile Data:', JSON.stringify(profileData, null, 2));
+      console.log('========================================');
+      console.log('[Complete] 📊 SAVING PREFERENCES DATA:');
+      console.log('[Complete] Seeking Genders:', preferencesData.seeking_genders);
+      console.log('[Complete] All Preferences Data:', JSON.stringify(preferencesData, null, 2));
+      console.log('========================================');
 
-      const { error: profileError } = await supabase
+      const { data: savedProfile, error: profileError } = await supabase
         .from('profiles')
         .upsert(profileData, { 
           onConflict: 'user_id',
           ignoreDuplicates: false 
-        });
+        })
+        .select()
+        .single();
 
       if (profileError) {
+        console.error('[Complete] ❌ Profile save error:', profileError);
         Alert.alert('Error', `Failed to save profile: ${profileError.message}`);
         setSaving(false);
         return;
       }
 
-      const { error: prefsError } = await supabase
+      console.log('[Complete] ✅ Profile saved successfully:', savedProfile);
+      console.log('[Complete] Profile ID:', savedProfile?.user_id);
+      console.log('[Complete] Profile name:', savedProfile?.first_name);
+
+      const { data: savedPrefs, error: prefsError } = await supabase
         .from('preferences')
         .upsert(preferencesData, { 
           onConflict: 'user_id',
           ignoreDuplicates: false 
-        });
+        })
+        .select()
+        .single();
 
       if (prefsError) {
+        console.error('[Complete] ❌ Preferences save error:', prefsError);
         Alert.alert('Error', `Failed to save preferences: ${prefsError.message}`);
         setSaving(false);
         return;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('[Complete] ✅ Preferences saved successfully:', savedPrefs);
+
+      // Initialize request counter for new user
+      const { data: counterData, error: counterError } = await supabase
+        .from('request_counters')
+        .upsert({
+          user_id: user.id,
+          remaining: 10, // Default daily requests
+          last_exhausted_at: null,
+          next_refill_at: null,
+        }, {
+          onConflict: 'user_id',
+          ignoreDuplicates: false
+        })
+        .select()
+        .single();
+
+      if (counterError) {
+        console.error('[Complete] Failed to initialize request counter:', counterError);
+      } else {
+        console.log('[Complete] Request counter initialized successfully:', counterData);
+      }
+
+      // Refresh profile and navigate immediately
       await refreshProfile();
-      
       router.push('/(onboarding)/package-selection');
     } catch (error: any) {
       Alert.alert('Error', `Failed to complete: ${error.message || 'Unknown error'}`);
@@ -212,25 +276,25 @@ export default function CompleteScreen() {
         <Animated.View style={[styles.titleSection, { opacity: fadeAnim }]}>
           <Text style={styles.title}>You're all set!</Text>
           <Text style={styles.subtitle}>
-            Your Mali Match profile is ready.{'\n'}Let's find your perfect match!
+            Your Calafdoon profile is ready.{'\n'}Let's find your life partner!
           </Text>
         </Animated.View>
 
         {/* Summary Cards */}
         <Animated.View style={[styles.summarySection, { opacity: fadeAnim }]}>
-          <SummaryItem icon="person" label="Profile created" color="#FF6B9D" />
-          <SummaryItem icon="images" label="Photos added" color="#4ECDC4" />
-          <SummaryItem icon="heart" label="Interests selected" color="#FFB347" />
-          <SummaryItem icon="options" label="Preferences set" color="#9B59B6" />
+          <SummaryItem icon="person" label="Profile Created" color="#0B1F3B" />
+          <SummaryItem icon="images" label="Photos Added" color="#10B981" />
+          <SummaryItem icon="heart" label="Values Selected" color="#C8A15A" />
+          <SummaryItem icon="options" label="Preferences Set" color="#6B7280" />
         </Animated.View>
 
         {/* What's Next */}
         <Animated.View style={[styles.nextSection, { opacity: fadeAnim }]}>
-          <Text style={styles.nextTitle}>What's next?</Text>
+          <Text style={styles.nextTitle}>What happens next?</Text>
           <View style={styles.stepsList}>
-            <StepItem number="1" text="Start discovering amazing people" />
-            <StepItem number="2" text="Swipe right on profiles you like" />
-            <StepItem number="3" text="Match and start chatting!" />
+            <StepItem number="1" text="Browse serious profiles" />
+            <StepItem number="2" text="Send interest requests" />
+            <StepItem number="3" text="Chat when accepted!" />
           </View>
         </Animated.View>
       </ScrollView>

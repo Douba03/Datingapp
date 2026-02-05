@@ -13,6 +13,8 @@ export default function OnboardingLayout() {
       >
         <Stack.Screen name="welcome" />
         <Stack.Screen name="basic-info" />
+        <Stack.Screen name="faith-culture" />
+        <Stack.Screen name="background" />
         <Stack.Screen name="photos" />
         <Stack.Screen name="bio" />
         <Stack.Screen name="interests" />

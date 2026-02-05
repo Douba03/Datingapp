@@ -105,9 +105,9 @@ export default function WelcomeScreen() {
             <View style={[styles.decorCircle, styles.circle3]} />
           </View>
 
-          <Text style={styles.appName}>Mali Match</Text>
+          <Text style={styles.appName}>Calafdoon</Text>
           <Text style={styles.tagline}>
-            Find your perfect match{'\n'}in Mali and beyond
+            A serious platform for{'\n'}Somalis seeking marriage
           </Text>
         </Animated.View>
 
@@ -122,23 +122,23 @@ export default function WelcomeScreen() {
           ]}
         >
           <FeatureItem
-            icon="heart-circle"
-            iconColor="#FF6B9D"
-            title="Smart Matching"
-            description="AI-powered matches based on your interests"
+            icon="people"
+            iconColor="#0B1F3B"
+            title="Serious Intentions"
+            description="Focus on marriage and engagement"
             delay={100}
           />
           <FeatureItem
-            icon="sparkles"
-            iconColor="#FFB347"
-            title="Super Likes"
-            description="Stand out with special likes"
+            icon="hand-right"
+            iconColor="#C8A15A"
+            title="Request-Based"
+            description="Send a request before chatting"
             delay={200}
           />
           <FeatureItem
             icon="shield-checkmark"
-            iconColor="#4ECDC4"
-            title="Safe & Secure"
+            iconColor="#10B981"
+            title="Safe & Serious"
             description="Verified profiles for your safety"
             delay={300}
           />
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 157, 0.1)',
+    borderColor: 'rgba(11, 31, 59, 0.1)',
   },
   featureIconContainer: {
     width: 54,

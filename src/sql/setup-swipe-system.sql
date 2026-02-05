@@ -1,6 +1,6 @@
--- SWIPE SYSTEM SETUP: 10 SWIPES WITH 12-HOUR REFILL
+-- SWIPE SYSTEM SETUP: 10 SWIPES WITH 8-HOUR REFILL
 -- Run this in Supabase SQL Editor to set up the swipe system
--- Each user gets 10 swipes, which refill after 12 hours once exhausted
+-- Each user gets 10 swipes, which refill after 8 hours once exhausted
 
 -- Drop existing triggers that might cause double decrement
 DROP TRIGGER IF EXISTS trigger_update_swipe_counter ON swipes;
@@ -35,7 +35,7 @@ CREATE POLICY "Users can insert own swipe counter"
   ON swipe_counters FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
--- Main record_swipe function - handles 10 swipes with 12-hour refill
+-- Main record_swipe function - handles 10 swipes with 8-hour refill
 CREATE OR REPLACE FUNCTION record_swipe(
   swiper_uuid UUID,
   target_uuid UUID,
@@ -136,11 +136,11 @@ BEGIN
     -- Update remaining count
     remaining_swipes := remaining_swipes - 1;
     
-    -- If swipes exhausted, set refill time to 12 hours from now
+    -- If swipes exhausted, set refill time to 8 hours from now
     IF remaining_swipes <= 0 THEN
       UPDATE swipe_counters
       SET last_exhausted_at = NOW(),
-          next_refill_at = NOW() + INTERVAL '12 hours'
+          next_refill_at = NOW() + INTERVAL '8 hours'
       WHERE user_id = swiper_uuid;
     END IF;
   END IF;
@@ -208,5 +208,5 @@ GRANT EXECUTE ON FUNCTION check_and_refill_swipes() TO authenticated;
 -- UPDATE swipe_counters SET remaining = 10, last_exhausted_at = NULL, next_refill_at = NULL, updated_at = NOW();
 
 -- Success message
-SELECT 'Swipe system configured: 10 swipes per user, 12-hour refill after exhaustion!' as message;
+SELECT 'Swipe system configured: 10 swipes per user, 8-hour refill after exhaustion!' as message;
 

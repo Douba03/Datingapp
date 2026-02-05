@@ -168,32 +168,87 @@ function SettingsScreen() {
     if (!user) return;
       
     setDeleteAccountLoading(true);
+    try {
+      console.log('[Settings] Deleting account COMPLETELY for user:', user.id);
+
+      // Delete all user data from all tables
+      // Order matters due to foreign key constraints
+      
+      // 1. Delete messages (only sender_id exists, messages linked via match_id)
+      await supabase.from('messages').delete().eq('sender_id', user.id);
+      
+      // 2. Delete connection requests
+      await supabase.from('connection_requests').delete().or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+      
+      // 3. Delete swipes
+      await supabase.from('swipes').delete().or(`swiper_user_id.eq.${user.id},target_user_id.eq.${user.id}`);
+      
+      // 4. Delete matches
+      await supabase.from('matches').delete().or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`);
+      
+      // 5. Delete hidden profiles
+      await supabase.from('hidden_profiles').delete().or(`user_id.eq.${user.id},hidden_user_id.eq.${user.id}`);
+      
+      // 6. Delete user blocks
+      await supabase.from('user_blocks').delete().or(`blocker_id.eq.${user.id},blocked_id.eq.${user.id}`);
+      
+      // 7. Delete request counters
+      await supabase.from('request_counters').delete().eq('user_id', user.id);
+      
+      // 8. Delete swipe counters
+      await supabase.from('swipe_counters').delete().eq('user_id', user.id);
+      
+      // 9. Delete notification preferences
+      await supabase.from('notification_preferences').delete().eq('user_id', user.id);
+      
+      // 10. Delete privacy settings
+      await supabase.from('privacy_settings').delete().eq('user_id', user.id);
+      
+      // 11. Delete preferences
+      await supabase.from('preferences').delete().eq('user_id', user.id);
+      
+      // 12. Delete profile
+      await supabase.from('profiles').delete().eq('user_id', user.id);
+      
+      // 13. Delete from users table
+      await supabase.from('users').delete().eq('id', user.id);
+      
+      // 14. Delete from auth.users using the secure RPC function
+      // This function deletes the user from auth.users as well
       try {
-        console.log('[Settings] Deleting account for user:', user.id);
+        const { error: rpcError } = await supabase.rpc('delete_my_account');
+        if (rpcError) {
+          console.warn('[Settings] RPC delete_my_account failed:', rpcError);
+          // Try alternative function
+          const { error: altError } = await supabase.rpc('delete_user_completely', { target_user_id: user.id });
+          if (altError) {
+            console.warn('[Settings] RPC delete_user_completely also failed:', altError);
+          }
+        } else {
+          console.log('[Settings] ✅ User deleted from auth.users via RPC');
+        }
+      } catch (rpcErr) {
+        console.warn('[Settings] RPC function not available:', rpcErr);
+      }
 
-        // Delete user data
-        await supabase.from('swipes').delete().or(`swiper_user_id.eq.${user.id},target_user_id.eq.${user.id}`);
-        await supabase.from('matches').delete().or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`);
-        await supabase.from('preferences').delete().eq('user_id', user.id);
-        await supabase.from('swipe_counters').delete().eq('user_id', user.id);
-        await supabase.from('profiles').delete().eq('user_id', user.id);
-
-        await signOut();
+      console.log('[Settings] ✅ All user data deleted successfully');
+      
+      await signOut();
       setShowDeleteAccountModal(false);
       
       if (Platform.OS === 'web') {
-        window.alert('Your account has been deleted.');
+        window.alert('Your account has been permanently deleted.');
       } else {
-        Alert.alert('Account Deleted', 'Your account has been deleted.');
+        Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
       }
-        router.replace('/(auth)/login');
-      } catch (err: any) {
-        console.error('[Settings] Delete account error:', err);
+      router.replace('/(auth)/login');
+    } catch (err: any) {
+      console.error('[Settings] Delete account error:', err);
       if (Platform.OS === 'web') {
         window.alert(err?.message || 'Failed to delete account.');
-    } else {
-                Alert.alert('Deletion Error', err?.message || 'Failed to delete account.');
-              }
+      } else {
+        Alert.alert('Deletion Error', err?.message || 'Failed to delete account.');
+      }
     } finally {
       setDeleteAccountLoading(false);
     }

@@ -25,9 +25,16 @@ import { ProfileEditModal } from '../../components/profile/ProfileEditModal';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 import { UpgradePrompt } from '../../components/premium/UpgradePrompt';
 import { colors as staticColors } from '../../components/theme/colors';
+import { calculateCompatibility } from '../../utils/compatibility';
 import type { Profile as ProfileType } from '../../types/user';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+// Helper function to format field values
+const formatFieldValue = (value: string | null | undefined): string => {
+  if (!value) return '';
+  return value.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
 
 function ProfileScreen() {
   const { user, profile, session, signOut, updateProfile, refreshProfile } = useAuth();
@@ -44,8 +51,42 @@ function ProfileScreen() {
   const [otherLoading, setOtherLoading] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [upgradeTrigger, setUpgradeTrigger] = useState<'likes' | 'boost'>('likes');
-  const [boostLoading, setBoostLoading] = useState(false);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+
+  const isReadonly = params.viewUserId && params.readonly === 'true';
+
+  // Fetch other user's profile if viewing someone else
+  React.useEffect(() => {
+    if (params.viewUserId && params.viewUserId !== user?.id) {
+      fetchOtherProfile(params.viewUserId);
+    }
+  }, [params.viewUserId]);
+
+  const fetchOtherProfile = async (userId: string) => {
+    setOtherLoading(true);
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (profileError) throw profileError;
+
+      const { data: prefsData } = await supabase
+        .from('preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      setOtherProfile({ ...profileData, preferences: prefsData } as ProfileType);
+    } catch (error) {
+      console.error('[Profile] Error fetching other profile:', error);
+      Alert.alert('Error', 'Failed to load profile');
+    } finally {
+      setOtherLoading(false);
+    }
+  };
 
   const handleEditProfile = () => setShowEditModal(true);
 
@@ -60,6 +101,20 @@ function ProfileScreen() {
         photos: formData.photos || [],
         city: formData.city || '',
         country: formData.country || '',
+        religious_practice: formData.religious_practice,
+        prayer_frequency: formData.prayer_frequency,
+        hijab_preference: formData.hijab_preference,
+        dietary_preference: formData.dietary_preference,
+        family_involvement: formData.family_involvement,
+        marriage_timeline: formData.marriage_timeline,
+        education_level: formData.education_level,
+        occupation: formData.occupation,
+        living_situation: formData.living_situation,
+        has_children: formData.has_children,
+        wants_children: formData.wants_children,
+        ethnicity: formData.ethnicity,
+        languages: formData.languages,
+        tribe_clan: formData.tribe_clan,
         updated_at: new Date().toISOString(),
       };
       
@@ -72,7 +127,7 @@ function ProfileScreen() {
       
       if (formData.age_min !== undefined || formData.age_max !== undefined || 
           formData.max_distance_km !== undefined || formData.relationship_intent !== undefined ||
-          formData.seeking_genders !== undefined) {
+          formData.seeking_genders !== undefined || formData.values !== undefined) {
         const prefsUpdate: any = {
           updated_at: new Date().toISOString(),
         };
@@ -81,8 +136,7 @@ function ProfileScreen() {
         if (formData.max_distance_km !== undefined) prefsUpdate.max_distance_km = formData.max_distance_km;
         if (formData.relationship_intent !== undefined) prefsUpdate.relationship_intent = formData.relationship_intent;
         if (formData.seeking_genders !== undefined) prefsUpdate.seeking_genders = formData.seeking_genders;
-        
-        console.log('[Profile] Updating preferences:', prefsUpdate);
+        if (formData.values !== undefined) prefsUpdate.values = formData.values;
         
         await supabase
           .from('preferences')
@@ -90,10 +144,7 @@ function ProfileScreen() {
           .eq('user_id', user.id);
       }
       
-      // Close modal first, then refresh in background
       setShowEditModal(false);
-      
-      // Small delay to let modal close before refreshing
       setTimeout(async () => {
         await refreshProfile();
         await refreshStats();
@@ -116,66 +167,13 @@ function ProfileScreen() {
     }
   };
 
-  const handleBoost = async () => {
-    if (!user?.is_premium) {
-      setUpgradeTrigger('boost');
-      setShowUpgradePrompt(true);
-      return;
-    }
-    setBoostLoading(true);
-    try {
-      const { error } = await boostProfile();
-      if (error) {
-        Alert.alert('Error', 'Failed to boost profile');
-      } else {
-        Alert.alert('🚀 Boosted!', 'Your profile is now 2x more visible for 1 hour!');
-      }
-    } finally {
-      setBoostLoading(false);
-    }
-  };
-
-  const isReadonly = (params?.readonly === 'true' || params?.readonly === '1') && params?.viewUserId && params.viewUserId !== user?.id;
-
-  React.useEffect(() => {
-    const loadOther = async () => {
-      if (!isReadonly || !params?.viewUserId) return;
-      try {
-        setOtherLoading(true);
-        const { data: dbProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', params.viewUserId as string)
-          .single();
-        if (dbProfile) {
-        const { data: prefs } = await supabase
-          .from('preferences')
-          .select('*')
-          .eq('user_id', params.viewUserId as string)
-          .single();
-          setOtherProfile({ ...dbProfile, preferences: prefs } as ProfileType);
-        }
-      } finally {
-        setOtherLoading(false);
-      }
-    };
-    loadOther();
-  }, [isReadonly, params?.viewUserId]);
-
-  const fallbackProfile: ProfileType | null = (!isReadonly && !profile && session) ? {
-    user_id: session.user.id,
-    first_name: (session.user.email || 'User').split('@')[0],
-    date_of_birth: '1995-01-01',
-    gender: 'prefer_not_to_say' as any,
-    bio: '',
-    photos: [],
-    interests: [],
-    age: 0,
-  } as unknown as ProfileType : null;
-
-  const displayProfile = (isReadonly ? otherProfile : (profile || fallbackProfile)) as ProfileType | null;
+  const displayProfile = (isReadonly ? otherProfile : profile) as ProfileType | null;
   const safeStats = stats || { matches: 0, likes: 0, superLikes: 0, matchRate: 0, swipeCount: 0 };
   const photos = displayProfile?.photos || [];
+
+  const compatibility = (isReadonly && displayProfile && profile) 
+    ? calculateCompatibility(displayProfile, profile, profile.preferences)
+    : null;
 
   if (isReadonly && (otherLoading || !displayProfile)) {
     return (
@@ -208,7 +206,6 @@ function ProfileScreen() {
                 colors={['transparent', 'rgba(0,0,0,0.8)']}
                 style={styles.heroGradient}
               />
-              {/* Photo Indicators */}
               {photos.length > 1 && (
                 <View style={styles.photoIndicators}>
                   {photos.map((_, index) => (
@@ -218,9 +215,8 @@ function ProfileScreen() {
                       onPress={() => setActivePhotoIndex(index)}
                     />
                   ))}
-              </View>
-            )}
-              {/* Photo Navigation */}
+                </View>
+              )}
               <View style={styles.photoNavigation}>
                 <TouchableOpacity
                   style={styles.photoNavButton}
@@ -241,11 +237,10 @@ function ProfileScreen() {
           ) : (
             <View style={styles.noPhotoContainer}>
               <Ionicons name="camera" size={60} color={colors.textSecondary} />
-              <Text style={styles.noPhotoText}>Add photos to your profile</Text>
-          </View>
+              <Text style={[styles.noPhotoText, { color: colors.textSecondary }]}>Add photos to your profile</Text>
+            </View>
           )}
 
-          {/* Hero Content Overlay */}
           <View style={styles.heroContent}>
             <View style={styles.heroNameRow}>
               <Text style={styles.heroName}>
@@ -263,24 +258,21 @@ function ProfileScreen() {
                 <Ionicons name="location" size={16} color="#fff" />
                 <Text style={styles.heroLocationText}>
                   {displayProfile.city}{displayProfile.country ? `, ${displayProfile.country}` : ''}
-            </Text>
+                </Text>
               </View>
             )}
           </View>
 
-          {/* Edit Button */}
           {!isReadonly && (
             <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
               <Ionicons name="pencil" size={20} color="#fff" />
             </TouchableOpacity>
-            )}
+          )}
 
-          {/* Back Button for readonly */}
           {isReadonly && (
             <TouchableOpacity 
               style={styles.backButton} 
               onPress={() => {
-                // Use returnTo if provided, otherwise go back
                 if (params.returnTo) {
                   router.replace(params.returnTo as any);
                 } else {
@@ -293,167 +285,228 @@ function ProfileScreen() {
           )}
         </View>
 
-        {/* Stats Cards */}
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-            <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.statIconBg}>
-              <Ionicons name="heart" size={20} color="#fff" />
-            </LinearGradient>
-                <Text style={[styles.statNumber, { color: colors.text }]}>{safeStats.matches}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Matches</Text>
+        {/* Compatibility Score - Only for other profiles */}
+        {compatibility && (
+          <View style={[styles.section, { backgroundColor: colors.surface }]}>
+            <View style={styles.compatibilityHeader}>
+              <View style={styles.scoreContainer}>
+                <Text style={[styles.scoreText, { color: colors.primary }]}>{compatibility.score}%</Text>
+                <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>Match</Text>
               </View>
-          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-            <LinearGradient colors={['#FF6B6B', '#EE5A5A']} style={styles.statIconBg}>
-              <Ionicons name="flame" size={20} color="#fff" />
-            </LinearGradient>
-                <Text style={[styles.statNumber, { color: colors.text }]}>{safeStats.likes}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Likes</Text>
-              </View>
-          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-            <LinearGradient colors={['#4ECDC4', '#44A08D']} style={styles.statIconBg}>
-              <Ionicons name="star" size={20} color="#fff" />
-            </LinearGradient>
-                <Text style={[styles.statNumber, { color: colors.text }]}>{safeStats.superLikes}</Text>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Super Likes</Text>
+              <View style={styles.compatibilityInfo}>
+                <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 4 }]}>Compatibility</Text>
+                <Text style={[styles.compatibilitySubtitle, { color: colors.textSecondary }]}>
+                  Based on your preferences and values
+                </Text>
               </View>
             </View>
             
-        {/* Bio Section */}
-        {displayProfile?.bio && (
-          <View style={[styles.section, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>About Me</Text>
-            <Text style={[styles.bioText, { color: colors.textSecondary }]}>{displayProfile.bio}</Text>
+            {compatibility.matches.length > 0 && (
+              <View style={styles.matchList}>
+                {compatibility.matches.map((match, index) => (
+                  <View key={index} style={styles.matchItem}>
+                    <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                    <Text style={[styles.matchText, { color: colors.text }]}>{match}</Text>
+                  </View>
+                ))}
               </View>
+            )}
+          </View>
         )}
 
-        {/* Interests Section */}
+
+        {/* About Me / Bio */}
+        {displayProfile?.bio && (
+          <View style={[styles.section, { backgroundColor: colors.surface }]}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="document-text" size={22} color={colors.primary} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>About Me</Text>
+            </View>
+            <Text style={[styles.bioText, { color: colors.textSecondary }]}>{displayProfile.bio}</Text>
+          </View>
+        )}
+
+        {/* Religious & Cultural Information */}
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="moon" size={22} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Faith & Values</Text>
+          </View>
+          
+          <View style={styles.infoGrid}>
+            {displayProfile?.religious_practice && (
+              <InfoItem
+                icon="star"
+                label="Religious Practice"
+                value={formatFieldValue(displayProfile.religious_practice)}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.prayer_frequency && (
+              <InfoItem
+                icon="time"
+                label="Prayer Frequency"
+                value={formatFieldValue(displayProfile.prayer_frequency)}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.hijab_preference && (
+              <InfoItem
+                icon="person"
+                label="Hijab"
+                value={formatFieldValue(displayProfile.hijab_preference)}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.dietary_preference && (
+              <InfoItem
+                icon="restaurant"
+                label="Dietary"
+                value={formatFieldValue(displayProfile.dietary_preference)}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.marriage_timeline && (
+              <InfoItem
+                icon="calendar"
+                label="Marriage Timeline"
+                value={formatFieldValue(displayProfile.marriage_timeline)}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.family_involvement && (
+              <InfoItem
+                icon="people"
+                label="Family Involvement"
+                value={formatFieldValue(displayProfile.family_involvement)}
+                colors={colors}
+              />
+            )}
+          </View>
+
+          {/* Core Values */}
+          {displayProfile?.preferences?.values && displayProfile.preferences.values.length > 0 && (
+            <View style={styles.valuesContainer}>
+              <Text style={[styles.subsectionTitle, { color: colors.text }]}>Core Values</Text>
+              <View style={styles.chipsContainer}>
+                {displayProfile.preferences.values.map((value, index) => (
+                  <View key={index} style={[styles.chip, { backgroundColor: `${colors.primary}15`, borderColor: `${colors.primary}30` }]}>
+                    <Ionicons name="heart" size={14} color={colors.primary} />
+                    <Text style={[styles.chipText, { color: colors.text }]}>{value}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Background & Lifestyle */}
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="briefcase" size={22} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Background & Lifestyle</Text>
+          </View>
+          
+          <View style={styles.infoGrid}>
+            {displayProfile?.education_level && (
+              <InfoItem
+                icon="school"
+                label="Education"
+                value={formatFieldValue(displayProfile.education_level)}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.occupation && (
+              <InfoItem
+                icon="briefcase"
+                label="Occupation"
+                value={displayProfile.occupation}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.living_situation && (
+              <InfoItem
+                icon="home"
+                label="Living Situation"
+                value={formatFieldValue(displayProfile.living_situation)}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.ethnicity && (
+              <InfoItem
+                icon="globe"
+                label="Ethnicity"
+                value={displayProfile.ethnicity}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.tribe_clan && (
+              <InfoItem
+                icon="people-circle"
+                label="Tribe/Clan"
+                value={displayProfile.tribe_clan}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.has_children !== null && displayProfile?.has_children !== undefined && (
+              <InfoItem
+                icon="heart-circle"
+                label="Has Children"
+                value={displayProfile.has_children ? 'Yes' : 'No'}
+                colors={colors}
+              />
+            )}
+            {displayProfile?.wants_children !== null && displayProfile?.wants_children !== undefined && (
+              <InfoItem
+                icon="heart"
+                label="Wants Children"
+                value={displayProfile.wants_children ? 'Yes' : 'No'}
+                colors={colors}
+              />
+            )}
+          </View>
+
+          {/* Languages */}
+          {displayProfile?.languages && displayProfile.languages.length > 0 && (
+            <View style={styles.valuesContainer}>
+              <Text style={[styles.subsectionTitle, { color: colors.text }]}>Languages</Text>
+              <View style={styles.chipsContainer}>
+                {displayProfile.languages.map((lang, index) => (
+                  <View key={index} style={[styles.chip, { backgroundColor: `${colors.primary}15`, borderColor: `${colors.primary}30` }]}>
+                    <Ionicons name="language" size={14} color={colors.primary} />
+                    <Text style={[styles.chipText, { color: colors.text }]}>{lang}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Interests */}
         {displayProfile?.interests && displayProfile.interests.length > 0 && (
           <View style={[styles.section, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Interests</Text>
-            <View style={styles.interestsGrid}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="heart-circle" size={22} color={colors.primary} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Interests & Hobbies</Text>
+            </View>
+            <View style={styles.chipsContainer}>
               {displayProfile.interests.map((interest, index) => (
-                <View key={index} style={[styles.interestChip, { backgroundColor: `${colors.primary}20` }]}>
-                  <Text style={[styles.interestText, { color: colors.text }]}>{interest}</Text>
-              </View>
+                <View key={index} style={[styles.chip, { backgroundColor: `${colors.primary}15`, borderColor: `${colors.primary}30` }]}>
+                  <Text style={[styles.chipText, { color: colors.text }]}>{interest}</Text>
+                </View>
               ))}
             </View>
           </View>
         )}
 
-        {/* Quick Actions */}
-        {!isReadonly && (
-          <View style={[styles.section, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
-            
-            {/* See Who Liked You */}
-            <TouchableOpacity
-              style={[styles.actionCard, { borderBottomColor: colors.border }]}
-              onPress={() => {
-                if (user?.is_premium) {
-                  router.push('/(tabs)/premium/likes-you');
-                } else {
-                  setUpgradeTrigger('likes');
-                  setShowUpgradePrompt(true);
-                }
-              }}
-            >
-              <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.actionIconBg}>
-                <Ionicons name="eye" size={24} color="#fff" />
-              </LinearGradient>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: colors.text }]}>See Who Liked You</Text>
-                <Text style={[styles.actionSubtitle, { color: colors.textSecondary }]}>
-                  {user?.is_premium ? `${safeStats.likes} people like you` : 'Premium feature'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-
-            {/* Boost Profile - Hidden from premium functions */}
-            {/* <TouchableOpacity style={styles.actionCard} onPress={handleBoost} disabled={boostLoading}>
-              <LinearGradient colors={['#9C27B0', '#7B1FA2']} style={styles.actionIconBg}>
-                <Ionicons name="rocket" size={24} color="#fff" />
-              </LinearGradient>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Boost Profile</Text>
-                <Text style={styles.actionSubtitle}>
-                  {user?.is_premium ? 'Get 2x more visibility' : 'Premium feature'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-            </TouchableOpacity> */}
-
-            {/* Update Location */}
-            <TouchableOpacity
-              style={[styles.actionCard, { borderBottomColor: colors.border }]}
-              onPress={() => {
-                Alert.alert(
-                  'Update Location',
-                  'Would you like to update your location to your current position?',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Update', onPress: async () => {
-                      const result = await updateLocation();
-                      if (!result.error) {
-                        Alert.alert('Success', 'Your location has been updated!');
-                        refreshProfile();
-                      } else {
-                        Alert.alert('Error', 'Failed to update location');
-                      }
-                    }}
-                  ]
-                );
-              }}
-              disabled={locationLoading}
-            >
-              <LinearGradient colors={['#2196F3', '#1976D2']} style={styles.actionIconBg}>
-                <Ionicons name="location" size={24} color="#fff" />
-              </LinearGradient>
-              <View style={styles.actionContent}>
-                <Text style={[styles.actionTitle, { color: colors.text }]}>Update Location</Text>
-                <Text style={[styles.actionSubtitle, { color: colors.textSecondary }]}>
-                  {displayProfile?.city || 'Set your location'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Preferences Summary */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Dating Preferences</Text>
-          <View style={styles.preferencesGrid}>
-            <View style={styles.prefItem}>
-              <Ionicons name="heart-outline" size={20} color={colors.primary} />
-              <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>Looking for</Text>
-              <Text style={[styles.prefValue, { color: colors.text }]}>
-                {displayProfile?.preferences?.relationship_intent?.replace(/_/g, ' ') || 'Not set'}
-            </Text>
-          </View>
-            <View style={styles.prefItem}>
-              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-              <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>Age range</Text>
-              <Text style={[styles.prefValue, { color: colors.text }]}>
-              {displayProfile?.preferences?.age_min || 18} - {displayProfile?.preferences?.age_max || 100}
-            </Text>
-          </View>
-            <View style={styles.prefItem}>
-              <Ionicons name="navigate-outline" size={20} color={colors.primary} />
-              <Text style={[styles.prefLabel, { color: colors.textSecondary }]}>Distance</Text>
-              <Text style={[styles.prefValue, { color: colors.text }]}>
-              {displayProfile?.preferences?.max_distance_km || 50} km
-            </Text>
-          </View>
-        </View>
-          </View>
+        {/* Partner Preferences - Hidden from profile view */}
+        {/* Quick Actions - Hidden from profile view */}
 
         {/* Sign Out Button */}
         {!isReadonly && (
           <TouchableOpacity 
             style={[styles.signOutButton, { backgroundColor: colors.surface }]}
             onPress={async () => {
-              // Use window.confirm for web, Alert for native
               if (Platform.OS === 'web') {
                 const confirmed = window.confirm('Are you sure you want to sign out?');
                 if (confirmed) {
@@ -472,14 +525,13 @@ function ProfileScreen() {
             }}
           >
             <Ionicons name="log-out-outline" size={20} color={colors.error} />
-            <Text style={styles.signOutText}>Sign Out</Text>
+            <Text style={[styles.signOutText, { color: colors.error }]}>Sign Out</Text>
           </TouchableOpacity>
         )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Modals */}
       <ProfileEditModal
         visible={showEditModal}
         profile={profile}
@@ -499,6 +551,21 @@ function ProfileScreen() {
   );
 }
 
+// Info Item Component
+function InfoItem({ icon, label, value, colors }: { icon: string; label: string; value: string; colors: any }) {
+  return (
+    <View style={styles.infoItem}>
+      <View style={[styles.infoIconContainer, { backgroundColor: `${colors.primary}15` }]}>
+        <Ionicons name={icon as any} size={18} color={colors.primary} />
+      </View>
+      <View style={styles.infoContent}>
+        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{label}</Text>
+        <Text style={[styles.infoValue, { color: colors.text }]}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -513,7 +580,7 @@ const styles = StyleSheet.create({
     color: staticColors.textSecondary,
   },
   
-  // Hero Section - Mobile optimized
+  // Hero Section
   heroSection: {
     height: 320,
     position: 'relative',
@@ -522,7 +589,6 @@ const styles = StyleSheet.create({
   heroImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
   },
   heroGradient: {
     position: 'absolute',
@@ -616,7 +682,7 @@ const styles = StyleSheet.create({
   heroLocationText: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.95)',
-    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
@@ -627,7 +693,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -638,168 +704,266 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  // Stats - Mobile optimized
+  // Compatibility Section
+  compatibilityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 16,
+  },
+  scoreContainer: {
+    alignItems: 'center',
+  },
+  scoreText: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: staticColors.primary,
+  },
+  scoreLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: staticColors.textSecondary,
+    marginTop: 2,
+  },
+  compatibilityInfo: {
+    flex: 1,
+  },
+  compatibilitySubtitle: {
+    fontSize: 13,
+    color: staticColors.textSecondary,
+  },
+  matchList: {
+    gap: 8,
+  },
+  matchItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  matchText: {
+    flex: 1,
+    fontSize: 14,
+    color: staticColors.text,
+  },
+
+  // Stats Row
   statsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
-    marginTop: 16,
-    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 12,
   },
   statCard: {
     flex: 1,
     backgroundColor: staticColors.surface,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  statIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: staticColors.text,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: staticColors.textSecondary,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-
-  // Sections - Mobile optimized
-  section: {
-    backgroundColor: staticColors.surface,
-    marginHorizontal: 12,
-    marginTop: 12,
     borderRadius: 16,
     padding: 16,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowRadius: 8,
     elevation: 2,
   },
+  statIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: staticColors.text,
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: staticColors.textSecondary,
+  },
+
+  // Section Styles
+  section: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: staticColors.surface,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 10,
+  },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '700',
+    color: staticColors.text,
+  },
+  subsectionTitle: {
+    fontSize: 15,
     fontWeight: '700',
     color: staticColors.text,
     marginBottom: 12,
+    marginTop: 16,
   },
   bioText: {
     fontSize: 15,
-    color: staticColors.textSecondary,
     lineHeight: 22,
+    color: staticColors.textSecondary,
   },
 
-  // Interests - Mobile optimized
-  interestsGrid: {
+  // Info Grid
+  infoGrid: {
+    gap: 16,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  infoIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${staticColors.primary}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: staticColors.textSecondary,
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: staticColors.text,
+  },
+
+  // Chips Container
+  valuesContainer: {
+    marginTop: 16,
+  },
+  chipsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 8,
   },
-  interestChip: {
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: `${staticColors.primary}15`,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
     borderWidth: 1,
     borderColor: `${staticColors.primary}30`,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    gap: 6,
   },
-  interestText: {
-    fontSize: 13,
-    color: staticColors.primary,
+  chipText: {
+    fontSize: 14,
     fontWeight: '600',
+    color: staticColors.text,
   },
 
-  // Action Cards - Mobile optimized
+  // Preferences Grid
+  preferencesGrid: {
+    gap: 12,
+  },
+  prefCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${staticColors.primary}08`,
+    borderRadius: 12,
+    padding: 14,
+    gap: 12,
+  },
+  prefLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: staticColors.textSecondary,
+  },
+  prefValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: staticColors.text,
+  },
+
+  // Action Cards
   actionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: staticColors.border,
+    gap: 14,
   },
   actionIconBg: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
   actionContent: {
     flex: 1,
-    marginLeft: 12,
   },
   actionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: staticColors.text,
+    marginBottom: 2,
   },
   actionSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     color: staticColors.textSecondary,
-    marginTop: 2,
   },
 
-  // Preferences - Mobile optimized
-  preferencesGrid: {
-    gap: 12,
-  },
-  prefItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  prefLabel: {
-    flex: 1,
-    fontSize: 14,
-    color: staticColors.text,
-  },
-  prefValue: {
-    fontSize: 14,
-    color: staticColors.textSecondary,
-    fontWeight: '500',
-  },
-
-  // Sign Out - Mobile optimized
+  // Sign Out Button
   signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginHorizontal: 12,
-    marginTop: 20,
-    paddingVertical: 14,
-    backgroundColor: `${staticColors.error}10`,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: `${staticColors.error}30`,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: staticColors.surface,
+    borderRadius: 16,
+    padding: 16,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   signOutText: {
-    fontSize: 15,
+    fontSize: 16,
+    fontWeight: '700',
     color: staticColors.error,
-    fontWeight: '600',
   },
 });
 
-export default function ProfileScreenWrapper() {
+export default function ProtectedProfileScreen() {
   return (
     <ProtectedRoute>
       <ProfileScreen />

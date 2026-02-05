@@ -264,7 +264,8 @@ export function useMatches() {
         seeking_genders: profile.preferences?.seeking_genders 
       });
 
-      // Apply gender filters
+      // STRICT GENDER FILTER: Endast visa motsatt kön
+      // Man ser endast kvinnor, kvinnor ser endast män
       const currentSeeking = Array.isArray(profile.preferences?.seeking_genders)
         ? (profile.preferences?.seeking_genders as string[])
         : profile.preferences?.seeking_genders
@@ -274,22 +275,13 @@ export function useMatches() {
       console.log('[useMatches] Current user gender:', profile.gender);
       console.log('[useMatches] Current user seeking genders:', currentSeeking);
 
-      // Show only profiles whose gender matches what current user is seeking
-      // If no preferences set, show all genders
+      // Endast visa profiler vars kön matchar vad användaren söker
+      // Om seeking_genders är tom, visa INGET (kräver att användaren väljer)
       if (currentSeeking.length > 0) {
         const beforeGenderFilter = filteredProfiles.length;
         filteredProfiles = filteredProfiles.filter(p => {
-          // Direct match
-          let matches = currentSeeking.includes(p.gender);
-          
-          // If user is seeking both man and woman, also include 'prefer_not_to_say' and 'non_binary'
-          // This is more inclusive - people who don't specify gender can still be shown
-          if (!matches && currentSeeking.includes('man') && currentSeeking.includes('woman')) {
-            if (p.gender === 'prefer_not_to_say' || p.gender === 'non_binary' || p.gender === 'other') {
-              matches = true;
-              console.log(`[useMatches] ${p.first_name}: gender=${p.gender} included (user seeks all)`);
-            }
-          }
+          // Endast exakt matchning - inga andra alternativ
+          const matches = currentSeeking.includes(p.gender);
           
           if (!matches) {
             console.log(`[useMatches] ❌ Filtering out ${p.first_name} - gender ${p.gender} not in seeking ${currentSeeking}`);
@@ -298,118 +290,91 @@ export function useMatches() {
         });
         console.log(`[useMatches] Gender filter (seeking): ${beforeGenderFilter} -> ${filteredProfiles.length}`);
       } else {
-        console.log('[useMatches] ⚠️ No seeking_genders set, showing all genders');
+        console.log('[useMatches] ⚠️ No seeking_genders set, showing NO profiles (user must set preferences)');
+        filteredProfiles = []; // Visa inga profiler om seeking_genders inte är satt
       }
 
-      // Optional mutual filter: include only users who are also seeking our gender (if they set it)
-      // Be lenient - only filter if target has explicitly set preferences AND they don't match
-      const beforeMutualFilter = filteredProfiles.length;
-      filteredProfiles = filteredProfiles.filter(p => {
-        // If target hasn't set preferences, include them
-        if (!p.preferences?.seeking_genders) {
-          console.log(`[useMatches] ${p.first_name} has no seeking_genders, including`);
-          return true;
-        }
-        
-        const targetSeeking = Array.isArray(p.preferences.seeking_genders)
-          ? p.preferences.seeking_genders as string[]
-          : [p.preferences.seeking_genders as unknown as string];
-        
-        // If target's seeking_genders is empty, include them (they haven't set preferences)
-        if (targetSeeking.length === 0) {
-          console.log(`[useMatches] ${p.first_name} has empty seeking_genders, including`);
-          return true;
-        }
-        
-        const matches = targetSeeking.includes(profile.gender);
-        if (!matches) {
-          console.log(`[useMatches] Filtering out ${p.first_name} - they seek ${targetSeeking}, current user is ${profile.gender}`);
-        }
-        return matches;
-      });
-      console.log(`[useMatches] Mutual gender filter: ${beforeMutualFilter} -> ${filteredProfiles.length}`);
+      // NOTE: We do NOT filter based on whether the other person is seeking us
+      // All profiles with the correct gender should be visible
+      // The compatibility score will prioritize mutual interest
 
-      // Apply age filter - but be lenient if age is not set (0 or null)
-      // Use wider defaults if preferences not set
+      // Get age preferences (used for scoring, not hard filtering)
       const ageMin = profile.preferences?.age_min ?? 18;
       const ageMax = profile.preferences?.age_max ?? 99;
-      
-      console.log('[useMatches] Current user preferences:', JSON.stringify(profile.preferences, null, 2));
-      
-      console.log('[useMatches] Age preferences:', { ageMin, ageMax });
-      
-      const beforeAgeFilter = filteredProfiles.length;
-      filteredProfiles = filteredProfiles.filter(p => {
-        const profileAge = p.age || 0;
-        
-        // If profile has no age set (0 or null), include them anyway
-        // This prevents new profiles from being filtered out
-        if (!profileAge || profileAge === 0) {
-          console.log(`[useMatches] ${p.first_name} has no age set, including anyway`);
-          return true;
-        }
-        
-        const withinRange = profileAge >= ageMin && profileAge <= ageMax;
-        if (!withinRange) {
-          console.log(`[useMatches] Filtering out ${p.first_name} (age: ${profileAge}) - outside range ${ageMin}-${ageMax}`);
-        }
-        return withinRange;
-      });
-      console.log(`[useMatches] Age filter: ${beforeAgeFilter} -> ${filteredProfiles.length} profiles`);
 
-      // Apply relationship intent filter
-      if (profile.preferences?.relationship_intent) {
-        const intent = profile.preferences.relationship_intent;
-        filteredProfiles = filteredProfiles.filter(p => 
-          !p.preferences?.relationship_intent || 
-          p.preferences.relationship_intent === intent
-        );
-      }
-
-      // Apply distance filter - but be lenient if location data is missing or invalid
-      if (profile.preferences?.max_distance_km && profile.location) {
-        const maxDistance = profile.preferences.max_distance_km;
-        const currentLocation = profile.location;
-        const beforeDistanceFilter = filteredProfiles.length;
-        
-        filteredProfiles = filteredProfiles.filter(p => {
-          // Include if target has no location data
-          if (!p.location) {
-            console.log(`[useMatches] ${p.first_name} has no location, including`);
-            return true;
-          }
-          
-          const distance = calculateDistance(currentLocation, p.location);
-          
-          // If distance calculation failed (NaN), include the profile anyway
-          if (isNaN(distance)) {
-            console.log(`[useMatches] ${p.first_name} distance is NaN (invalid location data), including anyway`);
-            return true;
-          }
-          
-          const withinDistance = distance <= maxDistance;
-          
-          console.log(`[useMatches] Distance to ${p.first_name}: ${distance}km (max: ${maxDistance}km, within: ${withinDistance})`);
-          
-          return withinDistance;
-        });
-        console.log(`[useMatches] Distance filter: ${beforeDistanceFilter} -> ${filteredProfiles.length}`);
-      }
-
-      // PRIORITY BOOST: Sort profiles so boosted ones appear first
-      // Boosted profiles are those where boost_expires_at > NOW()
+      // Calculate compatibility scores for ALL filtered profiles
       const now = new Date();
-      filteredProfiles.sort((a, b) => {
-        const aBoosted = a.boost_expires_at && new Date(a.boost_expires_at) > now;
-        const bBoosted = b.boost_expires_at && new Date(b.boost_expires_at) > now;
+      const profilesWithScores = filteredProfiles.map(p => {
+        let score = 0;
         
-        if (aBoosted && !bBoosted) return -1; // a comes first
-        if (!aBoosted && bBoosted) return 1;  // b comes first
-        return 0; // Keep original order
+        // Bonus for mutual interest (they're also seeking our gender) - HIGH PRIORITY
+        const theirSeeking = Array.isArray(p.preferences?.seeking_genders)
+          ? p.preferences.seeking_genders as string[]
+          : p.preferences?.seeking_genders
+            ? [p.preferences.seeking_genders as unknown as string]
+            : [];
+        if (theirSeeking.length > 0 && theirSeeking.includes(profile.gender)) {
+          score += 30; // Mutual interest bonus - highest priority
+        }
+        
+        // Bonus for being within age preference
+        const profileAge = p.age || 0;
+        if (profileAge && profileAge >= ageMin && profileAge <= ageMax) {
+          score += 15; // Age preference bonus
+        }
+        
+        // Bonus for having photos
+        if (p.photos && p.photos.length > 0) {
+          score += 10;
+        }
+        
+        // Bonus for having bio
+        if (p.bio && p.bio.trim().length > 0) {
+          score += 5;
+        }
+        
+        // Bonus for matching relationship intent
+        if (profile.preferences?.relationship_intent && p.preferences?.relationship_intent) {
+          if (profile.preferences.relationship_intent === p.preferences.relationship_intent) {
+            score += 15;
+          }
+        }
+        
+        // Distance bonus (closer = higher score)
+        if (profile.preferences?.max_distance_km && profile.location && p.location) {
+          const distance = calculateDistance(profile.location, p.location);
+          if (!isNaN(distance)) {
+            if (distance <= profile.preferences.max_distance_km) {
+              score += 10; // Within preferred distance
+            } else if (distance <= profile.preferences.max_distance_km * 2) {
+              score += 5; // Somewhat close
+            }
+          }
+        }
+        
+        // Boost bonus (paid feature)
+        const isBoosted = p.boost_expires_at && new Date(p.boost_expires_at) > now;
+        if (isBoosted) {
+          score += 50; // Boosted profiles get priority
+        }
+        
+        return { ...p, compatibilityScore: score };
       });
+
+      // Sort by compatibility score (highest first)
+      profilesWithScores.sort((a, b) => {
+        const scoreDiff = b.compatibilityScore - a.compatibilityScore;
+        if (scoreDiff !== 0) return scoreDiff;
+        return Math.random() - 0.5; // Random order for equal scores
+      });
+      
+      // Use the scored profiles - LIMIT TO MAX 20 PROFILES
+      const MAX_PROFILES = 20;
+      filteredProfiles = profilesWithScores.slice(0, MAX_PROFILES);
       
       console.log('[useMatches] ========== FINAL RESULT ==========');
-      console.log('[useMatches] Found profiles:', filteredProfiles.length);
+      console.log('[useMatches] Total matching profiles:', profilesWithScores.length);
+      console.log('[useMatches] Limited to:', filteredProfiles.length, '(max', MAX_PROFILES, ')');
       if (filteredProfiles.length === 0) {
         console.log('[useMatches] NO PROFILES TO SHOW - Check filters above');
       } else {

@@ -25,17 +25,21 @@ import { ReportUserModal } from '../../../components/chat/ReportUserModal';
 import { ImagePreviewModal } from '../../../components/chat/ImagePreviewModal';
 import { GifPicker, PICKER_HEIGHT } from '../../../components/chat/GifPicker';
 import { ChatMenuModal } from '../../../components/chat/ChatMenuModal';
+import { WaliRequestModal } from '../../../components/chat/WaliRequestModal';
 import { supabase } from '../../../services/supabase/client';
+import { useWaliSystem } from '../../../hooks/useWaliSystem';
 import { usePhotoUpload } from '../../../hooks/usePhotoUpload';
 import { colors as staticColors } from '../../../components/theme/colors';
 
 function ChatScreen() {
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { colors } = useTheme();
   const { matches, sendMessage, markAsRead, loading, fetchMessages } = useChat();
+  const { sendWaliRequest, getDaysUntilWaliAvailable, getWaliRequestForMatch } = useWaliSystem();
   const [messages, setMessages] = useState<any[]>([]);
+  const [waliRequestSent, setWaliRequestSent] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
@@ -46,6 +50,8 @@ function ChatScreen() {
   const [sendingImage, setSendingImage] = useState(false);
   const [gifPickerVisible, setGifPickerVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [waliModalVisible, setWaliModalVisible] = useState(false);
+  const [daysUntilWali, setDaysUntilWali] = useState(5);
   const flatListRef = useRef<FlatList>(null);
   const { uploadPhoto, pickPhoto, takePhoto } = usePhotoUpload();
 
@@ -287,6 +293,25 @@ function ChatScreen() {
       markAsRead(matchId);
     }
   }, [matchId, markAsRead, match]);
+
+  // Check Wali request status and days remaining
+  useEffect(() => {
+    const checkWaliStatus = async () => {
+      if (!matchId) return;
+      
+      // Check if wali request already sent
+      const existingRequest = await getWaliRequestForMatch(matchId);
+      if (existingRequest) {
+        setWaliRequestSent(true);
+      }
+      
+      // Get days until wali available
+      const days = await getDaysUntilWaliAvailable(matchId);
+      setDaysUntilWali(days);
+    };
+    
+    checkWaliStatus();
+  }, [matchId, getWaliRequestForMatch, getDaysUntilWaliAvailable]);
 
   // With inverted FlatList, new messages automatically appear at bottom
   // No manual scroll needed
@@ -660,6 +685,38 @@ function ChatScreen() {
     } catch {}
   };
 
+  // Handle Wali Request
+  const handleSendWaliRequest = async (message: string) => {
+    if (!match || !user || !matchId) {
+      return { success: false, error: 'Missing required data' };
+    }
+
+    const result = await sendWaliRequest(
+      matchId,
+      (match.other_user as any).user_id,
+      message
+    );
+
+    if (result.success) {
+      setWaliRequestSent(true);
+      Alert.alert(
+        '💍 Request Sent!',
+        `Your Wali request has been sent to ${match.other_user.first_name}. They will be notified and can respond in the Requests section.`,
+        [{ text: 'OK' }]
+      );
+    } else {
+      Alert.alert('Error', result.error || 'Failed to send request');
+    }
+
+    return result;
+  };
+
+  // Check if user is male (can send wali request)
+  const isMale = profile?.gender === 'man';
+  
+  // Debug log to see gender value
+  console.log('[ChatScreen] Profile gender:', profile?.gender, 'isMale:', isMale, 'waliRequestSent:', waliRequestSent);
+
   if (loading || loadingMessages) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -728,6 +785,15 @@ function ChatScreen() {
         onCancel={() => setMenuVisible(false)}
       />
 
+      {/* Wali Request Modal */}
+      <WaliRequestModal
+        visible={waliModalVisible}
+        onClose={() => setWaliModalVisible(false)}
+        onSend={handleSendWaliRequest}
+        recipientName={match.other_user.first_name}
+        daysUntilAvailable={daysUntilWali}
+      />
+
       {/* Header - Matching app default style */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <View style={styles.headerLeft}>
@@ -755,14 +821,27 @@ function ChatScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Menu Button */}
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => setMenuVisible(true)}
-          accessibilityLabel="More options"
-        >
-          <Ionicons name="ellipsis-vertical" size={22} color={colors.text} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {/* Wali Request Button - Only for men who haven't sent request */}
+          {isMale && !waliRequestSent && (
+            <TouchableOpacity
+              style={[styles.waliButton, { backgroundColor: '#FFD70020' }]}
+              onPress={() => setWaliModalVisible(true)}
+              accessibilityLabel="Send Wali Request"
+            >
+              <Ionicons name="diamond" size={18} color="#FFD700" />
+            </TouchableOpacity>
+          )}
+
+          {/* Menu Button */}
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => setMenuVisible(true)}
+            accessibilityLabel="More options"
+          >
+            <Ionicons name="ellipsis-vertical" size={22} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Messages + Input wrapped in KeyboardAvoidingView */}
@@ -915,6 +994,18 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     padding: 8,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  waliButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   refreshButton: {
     padding: 6,

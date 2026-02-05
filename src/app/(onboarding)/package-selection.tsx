@@ -117,12 +117,12 @@ export default function PackageSelectionScreen() {
             </View>
 
             <View style={styles.featuresList}>
-              <FeatureItem text="10 swipes per day" included />
+              <FeatureItem text="10 requests per day" included />
               <FeatureItem text="Unlimited matches" included />
               <FeatureItem text="Full messaging" included />
               <FeatureItem text="See who liked you" />
-              <FeatureItem text="Unlimited swipes" />
-              <FeatureItem text="Undo swipes" />
+              <FeatureItem text="Unlimited requests" />
+              <FeatureItem text="Undo requests" />
             </View>
 
             <View style={styles.selectButton}>
@@ -160,15 +160,15 @@ export default function PackageSelectionScreen() {
               </LinearGradient>
               <Text style={[styles.packageName, styles.premiumName]}>Premium</Text>
               <View style={styles.priceContainer}>
-                <Text style={[styles.priceAmount, styles.premiumPrice]}>$1.99</Text>
+                <Text style={[styles.priceAmount, styles.premiumPrice]}>$5.99</Text>
                 <Text style={styles.pricePeriod}>per month</Text>
               </View>
             </View>
 
             <View style={styles.featuresList}>
-              <FeatureItem text="Unlimited swipes" included premium />
+              <FeatureItem text="Unlimited requests" included premium />
               <FeatureItem text="See who liked you" included premium />
-              <FeatureItem text="Undo last swipes" included premium />
+              <FeatureItem text="Undo last request" included premium />
               <FeatureItem text="Profile boost daily" included premium />
               <FeatureItem text="Advanced filters" included premium />
               <FeatureItem text="PRO badge" included premium />

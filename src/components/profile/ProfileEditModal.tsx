@@ -42,6 +42,17 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
     max_distance_km: 50,
     relationship_intent: 'not_sure',
     seeking_genders: [] as string[],
+    // Faith & Values
+    religious_practice: '',
+    prayer_frequency: '',
+    hijab_preference: '',
+    dietary_preference: '',
+    // Family & Background
+    marriage_timeline: '',
+    family_involvement: '',
+    education_level: '',
+    occupation: '',
+    tribe_clan: '',
   });
   const [loading, setLoading] = useState(false);
   const [showInterestSelector, setShowInterestSelector] = useState(false);
@@ -90,6 +101,16 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
         max_distance_km: profile.preferences?.max_distance_km || 50,
         relationship_intent: profile.preferences?.relationship_intent || 'not_sure',
         seeking_genders: Array.isArray(seekingGenders) ? seekingGenders : [],
+        // New fields
+        religious_practice: profile.religious_practice || '',
+        prayer_frequency: profile.prayer_frequency || '',
+        hijab_preference: profile.hijab_preference || '',
+        dietary_preference: profile.dietary_preference || '',
+        marriage_timeline: profile.marriage_timeline || '',
+        family_involvement: profile.family_involvement || '',
+        education_level: profile.education_level || '',
+        occupation: profile.occupation || '',
+        tribe_clan: profile.tribe_clan || '',
       });
       console.log('[ProfileEditModal] Loaded seeking_genders:', seekingGenders);
       setAgeMinText(String(ageMin));
@@ -375,6 +396,190 @@ export function ProfileEditModal({ visible, profile, onClose, onSave }: ProfileE
                 ))}
               </View>
             )}
+          </View>
+
+          {/* Faith & Values Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Faith & Values</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Religious Practice</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                {[
+                  { value: 'very_practicing', label: 'Very Practicing' },
+                  { value: 'practicing', label: 'Practicing' },
+                  { value: 'somewhat_practicing', label: 'Somewhat Practicing' },
+                  { value: 'cultural', label: 'Cultural' },
+                  { value: 'not_practicing', label: 'Not Practicing' },
+                ].map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.chipOption,
+                      formData.religious_practice === option.value && styles.selectedChipOption,
+                    ]}
+                    onPress={() => setFormData(prev => ({ ...prev, religious_practice: option.value }))}
+                  >
+                    <Text
+                      style={[
+                        styles.chipOptionText,
+                        formData.religious_practice === option.value && styles.selectedChipOptionText,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Prayer Frequency</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                {[
+                  { value: 'five_daily', label: '5x Daily' },
+                  { value: 'some_daily', label: 'Some Daily' },
+                  { value: 'friday_only', label: 'Friday Only' },
+                  { value: 'occasionally', label: 'Occasionally' },
+                  { value: 'prefer_not_say', label: 'Prefer not to say' },
+                ].map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.chipOption,
+                      formData.prayer_frequency === option.value && styles.selectedChipOption,
+                    ]}
+                    onPress={() => setFormData(prev => ({ ...prev, prayer_frequency: option.value }))}
+                  >
+                    <Text
+                      style={[
+                        styles.chipOptionText,
+                        formData.prayer_frequency === option.value && styles.selectedChipOptionText,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Hijab / Modesty</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                {[
+                  { value: 'always', label: 'Always' },
+                  { value: 'sometimes', label: 'Sometimes' },
+                  { value: 'not_currently', label: 'Not Currently' },
+                  { value: 'not_applicable', label: 'N/A (Men)' },
+                ].map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.chipOption,
+                      formData.hijab_preference === option.value && styles.selectedChipOption,
+                    ]}
+                    onPress={() => setFormData(prev => ({ ...prev, hijab_preference: option.value }))}
+                  >
+                    <Text
+                      style={[
+                        styles.chipOptionText,
+                        formData.hijab_preference === option.value && styles.selectedChipOptionText,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+
+          {/* Family & Background Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Family & Background</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Marriage Timeline</Text>
+              <View style={styles.wrapOptions}>
+                {[
+                  { value: 'within_year', label: 'Within 1 Year' },
+                  { value: 'one_to_two_years', label: '1-2 Years' },
+                  { value: 'when_ready', label: 'When Ready' },
+                  { value: 'not_sure', label: 'Not Sure' },
+                ].map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.chipOption,
+                      formData.marriage_timeline === option.value && styles.selectedChipOption,
+                    ]}
+                    onPress={() => setFormData(prev => ({ ...prev, marriage_timeline: option.value }))}
+                  >
+                    <Text
+                      style={[
+                        styles.chipOptionText,
+                        formData.marriage_timeline === option.value && styles.selectedChipOptionText,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Education</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                {[
+                  { value: 'high_school', label: 'High School' },
+                  { value: 'bachelors', label: 'Bachelors' },
+                  { value: 'masters', label: 'Masters' },
+                  { value: 'doctorate', label: 'PhD/Doctorate' },
+                ].map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.chipOption,
+                      formData.education_level === option.value && styles.selectedChipOption,
+                    ]}
+                    onPress={() => setFormData(prev => ({ ...prev, education_level: option.value }))}
+                  >
+                    <Text
+                      style={[
+                        styles.chipOptionText,
+                        formData.education_level === option.value && styles.selectedChipOptionText,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Occupation</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Software Engineer"
+                value={formData.occupation}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, occupation: text }))}
+                maxLength={50}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Tribe / Clan (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Isaaq, Darod..."
+                value={formData.tribe_clan}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, tribe_clan: text }))}
+                maxLength={50}
+              />
+            </View>
           </View>
 
           {/* Basic Info Section */}
@@ -891,5 +1096,39 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: '#F59E0B',
     marginTop: 8,
     textAlign: 'center',
+  },
+
+  // New Styles for Chips & Horizontal Scroll
+  horizontalScroll: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  wrapOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chipOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  selectedChipOption: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipOptionText: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  selectedChipOptionText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });

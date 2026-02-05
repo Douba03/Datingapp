@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,11 +19,12 @@ import { useOnboarding } from '../../contexts/OnboardingContext';
 export default function LocationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { updateData } = useOnboarding();
+  const { updateData, saveToDatabase } = useOnboarding();
   const [loading, setLoading] = useState(false);
   const [locationGranted, setLocationGranted] = useState(false);
-  const [city, setCity] = useState<string | null>(null);
-  const [country, setCountry] = useState<string | null>(null);
+  const [manualEntry, setManualEntry] = useState(false);
+  const [city, setCity] = useState<string>('');
+  const [country, setCountry] = useState<string>('');
 
   const requestLocationPermission = async () => {
     setLoading(true);
@@ -32,9 +34,9 @@ export default function LocationScreen() {
       if (status !== 'granted') {
         Alert.alert(
           'Location Access',
-          'We need your location to find matches nearby. You can change this later in settings.',
+          'We need your location to find matches nearby. You can grant access or enter it manually.',
           [
-            { text: 'Skip for now', style: 'cancel', onPress: handleSkip },
+            { text: 'Enter Manually', onPress: () => setManualEntry(true) },
             { text: 'Try Again', onPress: requestLocationPermission },
           ]
         );
@@ -54,6 +56,7 @@ export default function LocationScreen() {
       setCity(cityName);
       setCountry(countryName);
       setLocationGranted(true);
+      setManualEntry(false);
 
       updateData({
         city: cityName,
@@ -67,12 +70,54 @@ export default function LocationScreen() {
     } catch (error) {
       Alert.alert(
         'Error',
-        'Failed to get your location. Please try again or skip for now.',
+        'Failed to get your location. Please enter it manually.',
         [
-          { text: 'Skip', onPress: handleSkip },
+          { text: 'Enter Manually', onPress: () => setManualEntry(true) },
           { text: 'Retry', onPress: requestLocationPermission },
         ]
       );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleManualSubmit = async () => {
+    if (!city.trim() || !country.trim()) {
+      Alert.alert('Required', 'Please enter both city and country');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const address = `${city}, ${country}`;
+      const geocoded = await Location.geocodeAsync(address);
+
+      if (geocoded.length > 0) {
+        const { latitude, longitude } = geocoded[0];
+        
+        updateData({
+          city: city.trim(),
+          country: country.trim(),
+          location: {
+            lat: latitude,
+            lng: longitude,
+          },
+        });
+        
+        setLocationGranted(true);
+        setManualEntry(false);
+      } else {
+        Alert.alert('Location Not Found', 'We couldn\'t find that location. Please check the spelling.');
+      }
+    } catch (error) {
+      // Fallback if geocoding fails - save without coords (distance filter won't work perfectly but user can proceed)
+      updateData({
+        city: city.trim(),
+        country: country.trim(),
+        location: { lat: 0, lng: 0 }, // Default/Invalid coords
+      });
+      setLocationGranted(true);
+      setManualEntry(false);
     } finally {
       setLoading(false);
     }
@@ -83,11 +128,13 @@ export default function LocationScreen() {
       city: 'Unknown',
       country: 'Unknown',
     });
+    setTimeout(() => saveToDatabase(), 100);
     router.push('/(onboarding)/complete');
   };
 
   const handleContinue = () => {
     if (locationGranted) {
+      setTimeout(() => saveToDatabase(), 100);
       router.push('/(onboarding)/complete');
     }
   };
@@ -112,7 +159,7 @@ export default function LocationScreen() {
           />
         </View>
         
-        <Text style={styles.stepText}>Step 6 of 7</Text>
+        <Text style={styles.stepText}>Step 8 of 8</Text>
       </View>
 
       <View style={styles.content}>
@@ -137,15 +184,48 @@ export default function LocationScreen() {
         {/* Title */}
         <View style={styles.titleSection}>
           <Text style={styles.title}>
-            {locationGranted ? 'Location Enabled!' : 'Enable Location'}
+            {locationGranted ? 'Location Enabled!' : manualEntry ? 'Enter Location' : 'Enable Location'}
           </Text>
           <Text style={styles.subtitle}>
             {locationGranted 
               ? `We found you in ${city}! 📍`
-              : 'Help us find matches near you'
+              : manualEntry
+                ? 'Enter your city and country to find matches'
+                : 'Help us find matches near you'
             }
           </Text>
         </View>
+
+        {manualEntry && !locationGranted && (
+          <View style={styles.manualForm}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>City</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="business-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. Mogadishu"
+                  value={city}
+                  onChangeText={setCity}
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Country</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="globe-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. Somalia"
+                  value={country}
+                  onChangeText={setCountry}
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+            </View>
+          </View>
+        )}
 
         {locationGranted && city && (
           <View style={styles.locationCard}>
@@ -187,34 +267,65 @@ export default function LocationScreen() {
       {/* Footer */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         {!locationGranted ? (
-          <>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={requestLocationPermission}
-              disabled={loading}
-              activeOpacity={0.9}
-            >
-              <LinearGradient
-                colors={[colors.primary, colors.primaryDark]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.buttonGradient}
+          manualEntry ? (
+            <>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleManualSubmit}
+                disabled={loading}
+                activeOpacity={0.9}
               >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="location" size={20} color="#fff" />
-                    <Text style={styles.buttonText}>Enable Location</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-              <Text style={styles.skipText}>Skip for now</Text>
-            </TouchableOpacity>
-          </>
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.buttonGradient}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="save" size={20} color="#fff" />
+                      <Text style={styles.buttonText}>Save Location</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity onPress={() => setManualEntry(false)} style={styles.skipButton}>
+                <Text style={styles.skipText}>Use GPS instead</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={requestLocationPermission}
+                disabled={loading}
+                activeOpacity={0.9}
+              >
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.buttonGradient}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="location" size={20} color="#fff" />
+                      <Text style={styles.buttonText}>Enable Location</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+                <Text style={styles.skipText}>Skip for now</Text>
+              </TouchableOpacity>
+            </>
+          )
         ) : (
           <TouchableOpacity
             style={styles.primaryButton}
@@ -472,6 +583,42 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '600',
   },
+  
+  // Manual Entry Form Styles
+  manualForm: {
+    width: '100%',
+    marginBottom: 24,
+    gap: 16,
+  },
+  inputGroup: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginLeft: 4,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    height: '100%',
+  },
+
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',

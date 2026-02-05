@@ -19,36 +19,36 @@ const MAX_INTERESTS = 10;
 
 const interestCategories = [
   {
-    category: '🎨 Creative',
+    category: 'Creative & Arts',
     color: '#FF6B9D',
-    interests: ['Photography', 'Art', 'Music', 'Writing', 'Design', 'Dancing'],
+    interests: ['Photography', 'Art', 'Music', 'Writing', 'Design', 'Reading', 'Poetry'],
   },
   {
-    category: '🏃 Active',
+    category: 'Health & Activity',
     color: '#4ECDC4',
-    interests: ['Fitness', 'Yoga', 'Running', 'Hiking', 'Cycling', 'Sports'],
+    interests: ['Fitness', 'Walking', 'Running', 'Hiking', 'Sports', 'Swimming'],
   },
   {
-    category: '🎬 Entertainment',
+    category: 'Entertainment',
     color: '#FFB347',
-    interests: ['Movies', 'TV Shows', 'Gaming', 'Concerts', 'Theater', 'Podcasts'],
+    interests: ['Documentaries', 'Board Games', 'Cooking', 'Baking', 'Dining Out'],
   },
   {
-    category: '🌍 Lifestyle',
+    category: 'Lifestyle & Travel',
     color: '#9B59B6',
-    interests: ['Travel', 'Food', 'Coffee', 'Wine', 'Fashion', 'Pets'],
+    interests: ['Travel', 'Nature', 'Coffee', 'Tea', 'Family Time', 'Volunteering'],
   },
   {
-    category: '💼 Professional',
+    category: 'Professional & Intellectual',
     color: '#3498DB',
-    interests: ['Tech', 'Startups', 'Finance', 'Marketing', 'Science', 'Education'],
+    interests: ['Technology', 'Business', 'Science', 'History', 'Learning', 'Politics'],
   },
 ];
 
 export default function InterestsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { updateData } = useOnboarding();
+  const { updateData, saveToDatabase } = useOnboarding();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
 
   const toggleInterest = (interest: string) => {
@@ -70,6 +70,7 @@ export default function InterestsScreen() {
     }
 
     updateData({ interests: selectedInterests });
+    setTimeout(() => saveToDatabase(), 100);
     router.push('/(onboarding)/preferences');
   };
 
@@ -93,7 +94,7 @@ export default function InterestsScreen() {
           />
         </View>
         
-        <Text style={styles.stepText}>Step 4 of 7</Text>
+        <Text style={styles.stepText}>Step 6 of 8</Text>
       </View>
 
       <ScrollView
@@ -104,10 +105,10 @@ export default function InterestsScreen() {
         <View style={styles.content}>
           {/* Title */}
           <View style={styles.titleSection}>
-            <Ionicons name="heart-circle" size={48} color="#FF6B9D" />
-            <Text style={styles.title}>What are you into?</Text>
+            <Ionicons name="compass" size={48} color={colors.primary} />
+            <Text style={styles.title}>Interests & Hobbies</Text>
             <Text style={styles.subtitle}>
-              Select interests to help us find your perfect match
+              Select the activities you enjoy and would like to share with a partner
             </Text>
           </View>
 

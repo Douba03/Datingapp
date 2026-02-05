@@ -122,11 +122,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
   },
   outline: {
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderWidth: 2,
-    borderColor: colors.primary,
-    shadowOpacity: 0,
-    elevation: 0,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   gradient: {
     // Handled by LinearGradient
@@ -163,7 +165,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   outlineText: {
-    color: colors.primary,
+    color: '#1a1a1a',
     fontWeight: '600',
   },
   gradientText: {

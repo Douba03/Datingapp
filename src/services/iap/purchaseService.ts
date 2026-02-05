@@ -7,11 +7,11 @@ const isExpoGo = Constants.appOwnership === 'expo';
 
 // Product IDs - MUST match Google Play Console / App Store Connect exactly
 export const PRODUCT_IDS = {
-  PREMIUM_MONTHLY: 'premium',
+  PREMIUM_MONTHLY: 'PREMIUM',
 };
 
 // Subscription SKUs
-const SUBSCRIPTION_SKUS = ['premium'];
+const SUBSCRIPTION_SKUS = ['PREMIUM'];
 
 // Supabase Edge Function URL for receipt validation
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://zfnwtnqwokwvuxxwxgsr.supabase.co';
@@ -198,7 +198,7 @@ export class PurchaseService {
           productId: product.productId || product.id,
           title: product.title || product.name || 'Premium',
           description: product.description || 'Unlock all premium features',
-          price: product.localizedPrice || product.displayPrice || '$1.99',
+          price: product.localizedPrice || product.displayPrice || '$5.99',
           priceAmountMicros: Math.round(parseFloat(String(product.price || '1.99')) * 1000000),
           priceCurrencyCode: product.currency || 'USD',
         }));
@@ -217,8 +217,8 @@ export class PurchaseService {
       productId: PRODUCT_IDS.PREMIUM_MONTHLY,
       title: 'Premium Monthly',
       description: 'Unlock all premium features',
-      price: '$1.99',
-      priceAmountMicros: 1990000,
+      price: '$5.99',
+      priceAmountMicros: 5990000,
       priceCurrencyCode: 'USD',
     }];
   }
@@ -325,7 +325,7 @@ export class PurchaseService {
 
   static getPremiumPrice(): string {
     const product = this.products.find(p => p.productId === PRODUCT_IDS.PREMIUM_MONTHLY);
-    return product?.price || '$1.99';
+    return product?.price || '$5.99';
   }
 
   static async purchasePremium(userId: string): Promise<{ success: boolean; error?: string }> {

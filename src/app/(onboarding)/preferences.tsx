@@ -18,30 +18,53 @@ import { useOnboarding } from '../../contexts/OnboardingContext';
 export default function PreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { data, updateData } = useOnboarding();
-  const [seekingGenders, setSeekingGenders] = useState<string[]>(data.seekingGenders || []);
+  const { data, updateData, saveToDatabase } = useOnboarding();
+  
+  // Auto-select opposite gender for straight preference by default
+  const getDefaultSeekingGenders = () => {
+    if (data.seekingGenders && data.seekingGenders.length > 0) {
+      return data.seekingGenders;
+    }
+    // If user is a man, default to seeking women; if woman, default to seeking men
+    if (data.gender === 'man') {
+      return ['woman'];
+    } else if (data.gender === 'woman') {
+      return ['man'];
+    }
+    return [];
+  };
+  
+  const [seekingGenders, setSeekingGenders] = useState<string[]>(getDefaultSeekingGenders());
   const [ageRange, setAgeRange] = useState({ min: data.ageMin || 22, max: data.ageMax || 35 });
   const [maxDistance, setMaxDistance] = useState(data.maxDistance || 50);
-  const [relationshipIntent, setRelationshipIntent] = useState<string | null>(data.relationshipIntent || null);
 
-  const genderOptions = [
-    { value: 'man', label: 'Men', icon: 'male', color: '#4A90D9' },
-    { value: 'woman', label: 'Women', icon: 'female', color: '#FF6B9D' },
-  ];
+  // Only show opposite gender option
+  const getOppositeGenderOptions = () => {
+    if (data.gender === 'man') {
+      return [{ value: 'woman', label: 'Women', icon: 'female', color: '#FF6B9D' }];
+    } else if (data.gender === 'woman') {
+      return [{ value: 'man', label: 'Men', icon: 'male', color: '#4A90D9' }];
+    }
+    // If gender is not set or other, show both
+    return [
+      { value: 'man', label: 'Men', icon: 'male', color: '#4A90D9' },
+      { value: 'woman', label: 'Women', icon: 'female', color: '#FF6B9D' },
+    ];
+  };
 
-  const relationshipOptions = [
-    { value: 'serious_relationship', label: 'Serious Relationship', icon: 'heart', color: '#FF6B9D', emoji: '💍' },
-    { value: 'open_to_long_term', label: 'Open to Long-term', icon: 'infinite', color: '#9B59B6', emoji: '💜' },
-    { value: 'not_sure', label: 'Not Sure Yet', icon: 'help-circle', color: '#FFB347', emoji: '🤔' },
-    { value: 'casual', label: 'Casual Dating', icon: 'sparkles', color: '#4ECDC4' },
-  ];
+  const genderOptions = getOppositeGenderOptions();
 
   const toggleGender = (gender: string) => {
+    let updatedGenders: string[];
     if (seekingGenders.includes(gender)) {
-      setSeekingGenders(seekingGenders.filter(g => g !== gender));
+      updatedGenders = seekingGenders.filter(g => g !== gender);
     } else {
-      setSeekingGenders([...seekingGenders, gender]);
+      updatedGenders = [...seekingGenders, gender];
     }
+    setSeekingGenders(updatedGenders);
+    
+    // Auto-save to context immediately
+    updateData({ seekingGenders: updatedGenders });
   };
 
   const handleContinue = () => {
@@ -50,18 +73,14 @@ export default function PreferencesScreen() {
       return;
     }
 
-    if (!relationshipIntent) {
-      Alert.alert('What are you looking for?', 'Please select what you\'re looking for');
-      return;
-    }
-
     updateData({
       seekingGenders,
       ageMin: ageRange.min,
       ageMax: ageRange.max,
       maxDistance,
-      relationshipIntent,
+      relationshipIntent: data.relationshipIntent || 'serious_relationship',
     });
+    setTimeout(() => saveToDatabase(), 100);
     router.push('/(onboarding)/location');
   };
 
@@ -85,7 +104,7 @@ export default function PreferencesScreen() {
           />
         </View>
         
-        <Text style={styles.stepText}>Step 5 of 7</Text>
+        <Text style={styles.stepText}>Step 7 of 8</Text>
       </View>
 
       <ScrollView
@@ -96,51 +115,41 @@ export default function PreferencesScreen() {
         <View style={styles.content}>
           {/* Title */}
           <View style={styles.titleSection}>
-            <Ionicons name="heart" size={48} color="#FF6B9D" />
-            <Text style={styles.title}>Your ideal match</Text>
+            <View style={styles.iconContainer}>
+              <Ionicons name="people" size={40} color={colors.primary} />
+            </View>
+            <Text style={styles.title}>Partner Preferences</Text>
             <Text style={styles.subtitle}>
-              Tell us what you're looking for
+              Set your preferences to find compatible matches
             </Text>
           </View>
 
-          {/* Seeking Gender */}
+          {/* Gender Preference */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>I'm interested in...</Text>
+            <Text style={styles.sectionTitle}>I'm interested in</Text>
             <View style={styles.genderOptions}>
               {genderOptions.map((option) => {
                 const isSelected = seekingGenders.includes(option.value);
                 return (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.genderOption,
-                      isSelected && { borderColor: option.color, backgroundColor: `${option.color}08` },
-                  ]}
-                  onPress={() => toggleGender(option.value)}
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.genderOption,
+                      isSelected && { borderColor: option.color, borderWidth: 3 }
+                    ]}
+                    onPress={() => toggleGender(option.value)}
                     activeOpacity={0.7}
-                >
-                    <View style={[
-                      styles.genderIconContainer,
-                      { backgroundColor: `${option.color}15` }
-                    ]}>
-                  <Ionicons 
-                    name={option.icon as any} 
-                        size={28} 
-                        color={isSelected ? option.color : colors.textSecondary} 
-                  />
+                  >
+                    <View style={[styles.genderIconContainer, { backgroundColor: `${option.color}20` }]}>
+                      <Ionicons name={option.icon as any} size={32} color={option.color} />
                     </View>
-                    <Text style={[
-                      styles.genderLabel,
-                      isSelected && { color: option.color, fontWeight: '700' }
-                    ]}>
-                    {option.label}
-                  </Text>
+                    <Text style={styles.genderLabel}>{option.label}</Text>
                     {isSelected && (
                       <View style={[styles.checkIcon, { backgroundColor: option.color }]}>
-                        <Ionicons name="checkmark" size={14} color="#fff" />
+                        <Ionicons name="checkmark" size={16} color="#fff" />
                       </View>
-                  )}
-                </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -223,39 +232,6 @@ export default function PreferencesScreen() {
             </View>
           </View>
 
-          {/* Relationship Intent */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Looking for...</Text>
-            <View style={styles.relationshipOptions}>
-              {relationshipOptions.map((option) => {
-                const isSelected = relationshipIntent === option.value;
-                return (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.relationshipOption,
-                      isSelected && { borderColor: option.color, backgroundColor: `${option.color}08` },
-                  ]}
-                  onPress={() => setRelationshipIntent(option.value)}
-                    activeOpacity={0.7}
-                >
-                    <Text style={styles.relationshipEmoji}>{option.emoji}</Text>
-                    <Text style={[
-                      styles.relationshipLabel,
-                      isSelected && { color: option.color, fontWeight: '700' }
-                    ]}>
-                    {option.label}
-                  </Text>
-                    {isSelected && (
-                      <View style={[styles.checkIcon, { backgroundColor: option.color }]}>
-                        <Ionicons name="checkmark" size={14} color="#fff" />
-                      </View>
-                  )}
-                </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
         </View>
       </ScrollView>
 
@@ -331,9 +307,14 @@ const styles = StyleSheet.create({
     marginBottom: 28,
     alignItems: 'center',
   },
-  emoji: {
-    fontSize: 48,
-    marginBottom: 12,
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: `${colors.primary}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   title: {
     fontSize: 28,
@@ -375,6 +356,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+  },
+  genderOptionDisabled: {
+    opacity: 0.4,
   },
   genderIconContainer: {
     width: 56,
@@ -457,35 +441,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     color: colors.primary,
-  },
-  relationshipOptions: {
-    gap: 12,
-  },
-  relationshipOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  relationshipEmoji: {
-    fontSize: 24,
-    marginRight: 14,
-  },
-  relationshipLabel: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
   },
   footer: {
     paddingHorizontal: 24,

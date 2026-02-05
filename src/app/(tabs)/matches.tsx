@@ -39,7 +39,7 @@ function MatchesScreen() {
         colors={[colors.backgroundGradientStart, colors.backgroundGradientEnd]}
         style={styles.container}
       >
-        <LoadingSpinner text="Loading matches..." />
+        <LoadingSpinner text="Loading conversations..." />
       </LinearGradient>
     );
   }
@@ -82,9 +82,9 @@ function MatchesScreen() {
           <View style={[styles.emptyIconContainer, { backgroundColor: `${colors.like}15` }]}>
             <Ionicons name="chatbubbles-outline" size={64} color={colors.like} />
           </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Matches Yet</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Conversations Yet</Text>
           <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            Start swiping to find your{'\n'}perfect match!
+            When someone accepts your request{'\n'}you can start chatting here!
           </Text>
         </View>
       ) : (

@@ -8,7 +8,7 @@ export function usePurchases() {
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [initialized, setInitialized] = useState(false);
-  const [price, setPrice] = useState('$1.99');
+  const [price, setPrice] = useState('$5.99');
   const purchaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const initializeIAP = async () => {

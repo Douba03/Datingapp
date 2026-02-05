@@ -175,7 +175,8 @@ export function BlockUserModal({ visible, userName, onBlock, onCancel }: BlockUs
                   onPress={handleConfirmBlock}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="ban" size={18} color="#fff" style={{ marginRight: 6 }} /><Text style={styles.blockButtonText}>Block User</Text>
+                  <Ionicons name="ban" size={18} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={styles.blockButtonText}>Block User</Text>
                 </TouchableOpacity>
               </View>
             </>

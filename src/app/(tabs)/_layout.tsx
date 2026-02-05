@@ -21,8 +21,8 @@ function PremiumHeaderButton() {
         borderRadius: 19,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#FFD700',
-        shadowColor: '#FFD700',
+        backgroundColor: '#C8A15A',
+        shadowColor: '#C8A15A',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
@@ -94,16 +94,16 @@ function HeaderTitle() {
         color: colors.primary,
         letterSpacing: 0.5,
       }}>
-        Mali Match
+        Calafdoon
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
-        <Ionicons name="location" size={11} color={colors.textSecondary} />
+        <Ionicons name="heart" size={11} color={colors.textSecondary} />
         <Text style={{ 
           fontSize: 11, 
           color: colors.textSecondary,
           fontWeight: '500',
         }}>
-          Discover nearby
+          Hitta din livskamrat
         </Text>
       </View>
     </View>
@@ -179,13 +179,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="premium"
+        name="requests"
         options={{
-          title: 'Likes',
+          title: 'Förfrågningar',
           headerShown: false,
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "people" : "people-outline"} size={26} color={color} />
+            <Ionicons name={focused ? "mail" : "mail-outline"} size={26} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="premium"
+        options={{
+          href: null, // Hidden - accessed via premium button
+          headerShown: false,
         }}
       />
       <Tabs.Screen

@@ -35,9 +35,9 @@ function useAuthInternal() {
   useEffect(() => {
     // Shorter timeout to prevent infinite loading - show auth screen if takes too long
     const loadingTimeout = setTimeout(() => {
-      console.warn('[useAuth] Loading timeout reached (10s), setting loading to false');
+      console.warn('[useAuth] Loading timeout reached (3s), setting loading to false');
       setLoading(false);
-    }, 10000); // 10 seconds - faster timeout
+    }, 3000); // 3 seconds - faster timeout to prevent freezing
 
     // Try to initialize Supabase auth
     const initializeAuth = async () => {
@@ -102,7 +102,7 @@ function useAuthInternal() {
               const fetchTimeout = setTimeout(() => {
                 console.warn('[useAuth] fetchUserData timeout, forcing loading to false');
                 setLoading(false);
-              }, 12000); // 12 second overall timeout
+              }, 3000); // 3 second overall timeout to prevent freezing
               
               try {
                 await fetchUserData((session?.user?.id as string) || user?.id || '');
@@ -125,7 +125,7 @@ function useAuthInternal() {
                 const fetchTimeout = setTimeout(() => {
                   console.warn('[useAuth] fetchUserData timeout in retry, forcing loading to false');
                   setLoading(false);
-                }, 12000);
+                }, 3000);
                 
                 try {
                   await fetchUserData(reSession.user.id);
@@ -210,7 +210,7 @@ function useAuthInternal() {
       const fetchTimeout = setTimeout(() => {
         console.warn('[useAuth] Fetch user data timeout, setting loading to false');
         setLoading(false);
-      }, 8000); // 8 second timeout for fetch
+      }, 3000); // 3 second timeout for fetch to prevent freezing
       
       // Get auth user data
       const { data: authUser, error: authError } = await supabase.auth.getUser();
@@ -237,7 +237,7 @@ function useAuthInternal() {
               .eq('id', userId)
               .single(),
             new Promise((resolve) => 
-              setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 8000)
+              setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 2000)
             ) as Promise<any>
           ]);
           dbUser = (dbUserResult as any)?.data || null;
@@ -252,8 +252,33 @@ function useAuthInternal() {
             is_premium: dbUser?.is_premium 
           });
           
-          // If user record doesn't exist, create it
+          // If user record doesn't exist, check if this is a deleted account
           if (!dbUser) {
+            // Check if there's a profile - if no profile exists, this might be a deleted account
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('user_id')
+              .eq('user_id', userId)
+              .single();
+            
+            if (!existingProfile) {
+              // No user record AND no profile - this account was likely deleted
+              // Check if the auth user was created more than 5 minutes ago (not a new signup)
+              const authCreatedAt = new Date(authUser.user.created_at || Date.now());
+              const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+              
+              if (authCreatedAt < fiveMinutesAgo) {
+                // Old auth account but no profile - profile was deleted
+                // Instead of signing out, we'll create a new profile and show a message
+                console.log('[useAuth] ⚠️ Profile not found for existing auth user. Creating new profile...');
+                // Set a flag to show message to user
+                setSupabaseError('Profile not found. Creating a new account for you.');
+                // Clear the error after 5 seconds
+                setTimeout(() => setSupabaseError(null), 5000);
+              }
+            }
+            
+            // New user or recreating deleted profile - create user record
             console.log('[useAuth] Creating user record in database...');
             const { data: newUser, error: createError } = await supabase
               .from('users')
@@ -276,7 +301,51 @@ function useAuthInternal() {
             } else {
               console.log('[useAuth] User record created successfully');
               dbUser = newUser;
+              
+              // Also create an empty profile so storage uploads work
+              console.log('[useAuth] Creating empty profile for new user...');
+              const { error: profileCreateError } = await supabase
+                .from('profiles')
+                .upsert({
+                  user_id: userId,
+                  first_name: '',
+                  photos: [],
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                }, { onConflict: 'user_id' });
+              
+              if (profileCreateError) {
+                console.warn('[useAuth] Error creating empty profile:', profileCreateError);
+              } else {
+                console.log('[useAuth] Empty profile created successfully');
+              }
+              
+              // Also create empty preferences
+              const { error: prefCreateError } = await supabase
+                .from('preferences')
+                .upsert({
+                  user_id: userId,
+                  age_min: 18,
+                  age_max: 100,
+                  max_distance: 100,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                }, { onConflict: 'user_id' });
+              
+              if (prefCreateError) {
+                console.warn('[useAuth] Error creating empty preferences:', prefCreateError);
+              } else {
+                console.log('[useAuth] Empty preferences created successfully');
+              }
             }
+          } else if (dbUser.status === 'deleted') {
+            // User record exists but is marked as deleted
+            console.log('[useAuth] ⚠️ Account is marked as deleted. Signing out...');
+            await supabase.auth.signOut();
+            setUser(null);
+            setProfile(null);
+            setLoading(false);
+            return;
           }
         } catch (err) {
           console.warn('[useAuth] Error or timeout fetching user data:', err);
@@ -328,7 +397,7 @@ function useAuthInternal() {
               .eq('user_id', userId)
               .single(),
             new Promise((resolve) => 
-              setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 5000)
+              setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 2000)
             ) as Promise<any>
           ]);
           dbProfile = (profileResult as any)?.data || null;
@@ -361,7 +430,7 @@ function useAuthInternal() {
                 .eq('user_id', userId)
                 .single(),
               new Promise((resolve) => 
-                setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 5000)
+                setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 2000)
               ) as Promise<any>
             ]);
             preferences = (prefResult as any)?.data || null;
@@ -394,6 +463,23 @@ function useAuthInternal() {
             is_verified: dbProfile.is_verified || false,
             verification_photo: dbProfile.verification_photo || undefined,
             age: dbProfile.age || 0,
+            
+            // Religious & Cultural fields
+            religious_practice: dbProfile.religious_practice,
+            prayer_frequency: dbProfile.prayer_frequency,
+            hijab_preference: dbProfile.hijab_preference,
+            dietary_preference: dbProfile.dietary_preference,
+            family_involvement: dbProfile.family_involvement,
+            marriage_timeline: dbProfile.marriage_timeline,
+            education_level: dbProfile.education_level,
+            occupation: dbProfile.occupation,
+            living_situation: dbProfile.living_situation,
+            has_children: dbProfile.has_children,
+            wants_children: dbProfile.wants_children,
+            ethnicity: dbProfile.ethnicity,
+            languages: dbProfile.languages,
+            tribe_clan: dbProfile.tribe_clan,
+
             preferences: preferences
               ? {
                   user_id: preferences.user_id,
@@ -447,15 +533,19 @@ function useAuthInternal() {
   };
 
   const signUp = async (email: string, password: string) => {
-    console.log('[useAuth] signUp called with:', { email, passwordLength: password.length });
+    console.log('========================================');
+    console.log('[useAuth] 🚀 SIGNUP STARTED');
+    console.log('[useAuth] Email:', email);
+    console.log('[useAuth] Password length:', password.length);
+    console.log('========================================');
+    
     try {
-      console.log('[useAuth] Calling supabase.auth.signUp...');
-      // Simplified signup without email confirmation for testing
+      console.log('[useAuth] Step 1: Calling supabase.auth.signUp...');
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          // Don't require email verification for now
           emailRedirectTo: typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://zfnwtnqwokwvuxxwxgsr.supabase.co',
           data: {
             first_name: email.split('@')[0],
@@ -463,16 +553,30 @@ function useAuthInternal() {
         }
       });
       
-      console.log('[useAuth] signUp response:', { data, error });
+      console.log('[useAuth] Step 1 COMPLETE: signUp response received');
+      console.log('[useAuth] Has data:', !!data);
+      console.log('[useAuth] Has error:', !!error);
+      console.log('[useAuth] Full response:', JSON.stringify({ data, error }, null, 2));
       
       if (error) {
-        console.error('[useAuth] Signup error:', error);
+        console.error('========================================');
+        console.error('[useAuth] ❌ SIGNUP FAILED AT STEP 1');
+        console.error('[useAuth] Error name:', error.name);
+        console.error('[useAuth] Error message:', error.message);
+        console.error('[useAuth] Error status:', (error as any).status);
+        console.error('[useAuth] Full error:', JSON.stringify(error, null, 2));
+        console.error('========================================');
         return { data, error };
       }
       
       // If signup successful, manually create the profile
       if (data.user) {
-        console.log('[useAuth] Signup successful, creating profile...');
+        console.log('========================================');
+        console.log('[useAuth] ✅ STEP 1 SUCCESS: Auth user created');
+        console.log('[useAuth] User ID:', data.user.id);
+        console.log('[useAuth] User email:', data.user.email);
+        console.log('[useAuth] Step 2: Creating profile...');
+        console.log('========================================');
         
         try {
           // Create a profile for the user with timeout protection
@@ -505,9 +609,15 @@ function useAuthInternal() {
           }
           
           if (profileError) {
-            console.error('[useAuth] Error creating profile:', profileError);
+            console.error('========================================');
+            console.error('[useAuth] ❌ STEP 2 FAILED: Profile creation error');
+            console.error('[useAuth] Profile error:', JSON.stringify(profileError, null, 2));
+            console.error('========================================');
           } else {
-            console.log('[useAuth] Profile created successfully:', profileData);
+            console.log('========================================');
+            console.log('[useAuth] ✅ STEP 2 SUCCESS: Profile created');
+            console.log('[useAuth] Profile data:', profileData);
+            console.log('========================================');
           }
           
           // Create preferences for the user with timeout protection
@@ -559,14 +669,24 @@ function useAuthInternal() {
   };
 
   const signIn = async (email: string, password: string) => {
-    console.log('[useAuth] signIn called with:', { email, passwordLength: password.length });
-    console.log('[useAuth] Calling supabase.auth.signInWithPassword...');
+    console.log('========================================');
+    console.log('[useAuth] 🔑 SIGNIN STARTED');
+    console.log('[useAuth] Email:', email);
+    console.log('[useAuth] Password length:', password.length);
+    console.log('========================================');
+    
     try {
+      console.log('[useAuth] Step 1: Calling supabase.auth.signInWithPassword...');
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      console.log('[useAuth] signIn response:', { data, error });
+      
+      console.log('[useAuth] Step 1 COMPLETE: signIn response received');
+      console.log('[useAuth] Has data:', !!data);
+      console.log('[useAuth] Has error:', !!error);
+      console.log('[useAuth] Full response:', JSON.stringify({ data: { user: data?.user?.id, session: !!data?.session }, error }, null, 2));
       console.log('[useAuth] Data user:', data?.user);
       console.log('[useAuth] Data session:', data?.session);
       
@@ -811,7 +931,41 @@ function useAuthInternal() {
           is_verified: dbProfile.is_verified || false,
           verification_photo: dbProfile.verification_photo || undefined,
           age: dbProfile.age || 0,
-          preferences: preferences || undefined,
+          // Religious & Cultural fields
+          religious_practice: dbProfile.religious_practice,
+          prayer_frequency: dbProfile.prayer_frequency,
+          hijab_preference: dbProfile.hijab_preference,
+          dietary_preference: dbProfile.dietary_preference,
+          family_involvement: dbProfile.family_involvement,
+          marriage_timeline: dbProfile.marriage_timeline,
+          education_level: dbProfile.education_level,
+          occupation: dbProfile.occupation,
+          living_situation: dbProfile.living_situation,
+          has_children: dbProfile.has_children,
+          wants_children: dbProfile.wants_children,
+          ethnicity: dbProfile.ethnicity,
+          languages: dbProfile.languages,
+          tribe_clan: dbProfile.tribe_clan,
+          preferences: preferences
+            ? {
+                user_id: preferences.user_id,
+                seeking_genders: preferences.seeking_genders || [],
+                age_min: preferences.age_min,
+                age_max: preferences.age_max,
+                max_distance_km: preferences.max_distance_km,
+                relationship_intent: preferences.relationship_intent,
+                lifestyle: preferences.lifestyle || {},
+                values: preferences.values || [],
+                deal_breakers: preferences.deal_breakers || [],
+                interests: preferences.interests || [],
+                quiet_hours_start: preferences.quiet_hours_start || undefined,
+                quiet_hours_end: preferences.quiet_hours_end || undefined,
+                focus_session_duration: preferences.focus_session_duration || 25,
+                daily_goal: preferences.daily_goal || undefined,
+                created_at: preferences.created_at,
+                updated_at: preferences.updated_at,
+              }
+            : undefined,
         };
 
         console.log('[useAuth] Profile refreshed successfully:', {

@@ -149,7 +149,7 @@ export default function PaymentScreen() {
           
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Price</Text>
-            <Text style={[styles.summaryValue, { color: colors.text }]}>$1.99</Text>
+            <Text style={[styles.summaryValue, { color: colors.text }]}>$5.99</Text>
           </View>
           
           <View style={styles.summaryRow}>
@@ -161,7 +161,7 @@ export default function PaymentScreen() {
           
           <View style={[styles.summaryRow, styles.totalRow]}>
             <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
-            <Text style={[styles.totalValue, { color: colors.primary }]}>$1.99</Text>
+            <Text style={[styles.totalValue, { color: colors.primary }]}>$5.99</Text>
           </View>
         </View>
 
@@ -169,9 +169,9 @@ export default function PaymentScreen() {
         <View style={[styles.featuresCard, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}30` }]}>
           <Text style={[styles.featuresTitle, { color: colors.text }]}>What you get:</Text>
           <View style={styles.featuresList}>
-            <FeatureRow text="Unlimited swipes" colors={colors} />
+            <FeatureRow text="Unlimited requests" colors={colors} />
             <FeatureRow text="See who liked you" colors={colors} />
-            <FeatureRow text="Undo last swipes" colors={colors} />
+            <FeatureRow text="Undo last request" colors={colors} />
             <FeatureRow text="Profile boost (1/day)" colors={colors} />
             <FeatureRow text="Advanced filters" colors={colors} />
             <FeatureRow text="PRO badge" colors={colors} />
@@ -437,4 +437,3 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
-

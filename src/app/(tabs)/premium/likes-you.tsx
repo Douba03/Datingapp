@@ -282,7 +282,7 @@ export default function LikesYouScreen() {
               </TouchableOpacity>
               
               <Text style={styles.priceHint}>
-                Only $1.99/month • Cancel anytime
+                Only $5.99/month • Cancel anytime
               </Text>
             </View>
           </>
